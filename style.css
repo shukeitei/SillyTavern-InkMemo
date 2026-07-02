@@ -71,8 +71,26 @@
 .mc-header { padding: 16px 0 12px 0; text-align: left; }
 .mc-title { font-size: 20px; font-weight: 600; color: #F8A672; letter-spacing: 0.02em; }
 .mc-subtitle { font-size: 13px; color: var(--mc-text-mid); margin-top: 4px; }
-.mc-guide-link { display: inline-block; font-size: 12px; color: var(--mc-text-secondary, #A8A0B8); margin-top: 6px; text-decoration: none; opacity: 0.85; }
+.mc-guide-link { display: inline-block; font-size: 12px; color: var(--mc-text-secondary, #A8A0B8); margin-top: 6px; margin-right: 12px; text-decoration: none; opacity: 0.85; }
 .mc-guide-link:hover { color: var(--mc-text-mid); opacity: 1; text-decoration: underline; }
+
+/* === 新手引导(tour) === */
+.mc-tour-bubble {
+    margin: 8px 0 12px 0;
+    padding: 14px 16px;
+    background: var(--mc-surface-well);
+    border: 1px solid var(--mc-primary-dark);
+    border-radius: 12px;
+    box-shadow: 0 0 12px rgba(245, 138, 92, 0.15), var(--mc-surface-well-inset);
+}
+.mc-tour-progress { font-size: 11px; color: var(--mc-text-low); letter-spacing: 0.08em; }
+.mc-tour-title { font-size: 15px; font-weight: 600; color: var(--mc-primary-light); margin-top: 4px; }
+.mc-tour-text { font-size: 13px; line-height: 1.7; color: var(--mc-text-primary); margin-top: 6px; }
+.mc-tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.mc-tour-actions-right { display: flex; gap: 8px; }
+.mc-tour-skip { opacity: 0.7; }
+.mc-section.mc-tour-active,
+.mc-header.mc-tour-active { border-radius: 8px; outline: 1px solid var(--mc-primary-dark); outline-offset: 2px; }
 
 /* === 折叠区 === */
 .mc-section { border-bottom: 1px solid var(--mc-outline-variant); }

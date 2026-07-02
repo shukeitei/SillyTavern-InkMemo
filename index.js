@@ -19,6 +19,7 @@ import { mountInjector } from './src/injector.js';
 import { bindTriggerSettings, renderTriggerLog } from './src/trigger-ui.js';
 import { mountFloatingPanel, openFloatPanel, refreshFloatPanel } from './src/floating-panel.js';
 import { checkSyncDiff, renderSyncHint } from './src/sync-check.js';
+import { startTour, maybeStartTour } from './src/tour.js';
 
 const EXT_NAME = 'luomo';
 const LOG_PREFIX = '[InkMemo]';
@@ -625,6 +626,13 @@ jQuery(async () => {
     bindTriggerSettings();
     renderTriggerLog();
     document.addEventListener('luomo:trigger-updated', renderTriggerLog);
+
+    // 新手引导:首次打开面板时自动开始;标题区「重看引导」可随时重放
+    $(document).on('click', '#mc-tour-restart', (e) => {
+        e.preventDefault();
+        startTour();
+    });
+    maybeStartTour();
 
     console.log(`${LOG_PREFIX} 扩展初始化完成 v1.0.0`);
 });
