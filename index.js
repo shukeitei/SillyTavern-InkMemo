@@ -549,8 +549,8 @@ async function syncFromWorldbook() {
 // ==================== 入口 ====================
 
 jQuery(async () => {
-    // 1. 加载面板 HTML
-    const panelHtml = await $.get(`/scripts/extensions/third-party/${EXT_NAME}/settings.html`);
+    // 1. 加载面板 HTML（路径从模块自身 URL 推导，兼容任意安装目录名）
+    const panelHtml = await $.get(new URL('settings.html', import.meta.url).pathname);
     $('#extensions_settings2').append(panelHtml);
     console.log(`${LOG_PREFIX} 面板已加载`);
 
