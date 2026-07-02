@@ -376,7 +376,8 @@ function ensureDesktopModal() {
                 <button class="mc-btn mc-btn-primary" id="mc-btn-preview-confirm-immersive">
                     ✦ 沉浸式结晶
                 </button>
-                <button class="mc-btn mc-btn-primary" id="mc-btn-preview-confirm-concise">
+                <button class="mc-btn mc-btn-primary" id="mc-btn-preview-confirm-concise"
+                        title="概括风格,保真度低;想让 AI 忠实记住细节,优先用沉浸式">
                     ✦ 简洁式结晶
                 </button>
             </div>

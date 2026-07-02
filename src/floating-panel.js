@@ -79,7 +79,7 @@ function ensurePanel() {
         <button class="mc-btn mc-btn-outline mc-btn-full mc-fp-btn" id="mc-fp-preview">预览提取内容</button>
         <div class="mc-fp-modes">
             <button class="mc-btn mc-btn-primary" id="mc-fp-immersive">✦ 沉浸式</button>
-            <button class="mc-btn mc-btn-primary" id="mc-fp-concise">✦ 简洁式</button>
+            <button class="mc-btn mc-btn-primary" id="mc-fp-concise" title="概括风格,保真度低;想让 AI 忠实记住细节,优先用沉浸式">✦ 简洁式</button>
         </div>
         <div id="mc-fp-shimmer"></div>`;
     document.body.appendChild(panel);
