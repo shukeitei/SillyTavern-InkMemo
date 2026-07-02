@@ -1,0 +1,196 @@
+<div id="mc-panel" class="mc-panel">
+    <!-- 标题区 -->
+    <div class="mc-header">
+        <div class="mc-title">✦ 落墨 InkMemo</div>
+        <div class="mc-subtitle">记忆结晶 · 触发引擎</div>
+    </div>
+
+    <!-- API 设置（默认折叠） -->
+    <div class="mc-section">
+        <div class="mc-section-header" data-mc-section="api" aria-expanded="false">
+            <span>API 设置</span>
+            <span class="mc-chevron">▾</span>
+        </div>
+        <div class="mc-section-body" id="mc-section-api">
+            <div class="mc-field">
+                <label class="mc-label" for="mc-api-endpoint">API Endpoint</label>
+                <input class="mc-input" type="text" id="mc-api-endpoint"
+                       placeholder="https://api.deepseek.com/v1/chat/completions" />
+            </div>
+            <div class="mc-field">
+                <label class="mc-label" for="mc-api-key">API Key</label>
+                <input class="mc-input" type="password" id="mc-api-key"
+                       placeholder="sk-..." />
+            </div>
+            <div class="mc-field">
+                <label class="mc-label" for="mc-api-model">Model</label>
+                <input class="mc-input" type="text" id="mc-api-model"
+                       placeholder="deepseek-chat" />
+            </div>
+            <label class="mc-label" for="mc-api-temperature" style="margin-top: 12px;">Temperature</label>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <input class="mc-input" type="number" id="mc-api-temperature"
+                       value="0.7" min="0" max="2" step="0.1" style="width: 80px;" />
+                <span style="font-size: 12px; color: var(--mc-text-secondary);">建议 0.6~0.8</span>
+            </div>
+            <label class="mc-label" for="mc-api-max-tokens" style="margin-top: 12px;">Max Tokens</label>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <input class="mc-input" type="number" id="mc-api-max-tokens"
+                       value="8192" min="1024" max="32768" step="512" style="width: 100px;" />
+                <span style="font-size: 12px; color: var(--mc-text-secondary);">v2 prompt 建议 ≥ 8192,长原文用 16384</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 世界书设置（默认折叠） -->
+    <div class="mc-section">
+        <div class="mc-section-header" data-mc-section="worldbook" aria-expanded="false">
+            <span>世界书设置</span>
+            <span class="mc-chevron">▾</span>
+        </div>
+        <div class="mc-section-body" id="mc-section-worldbook">
+            <div class="mc-field">
+                <label class="mc-label" for="mc-wb-memory-book">回忆录世界书（全局默认）</label>
+                <input class="mc-input" type="text" id="mc-wb-memory-book"
+                       placeholder="落墨·回忆录" />
+            </div>
+            <div class="mc-field">
+                <label class="mc-label" for="mc-wb-knowledge-book">角色知识库世界书（全局默认）</label>
+                <input class="mc-input" type="text" id="mc-wb-knowledge-book"
+                       placeholder="落墨·角色知识库" />
+            </div>
+            <div style="margin-top: 8px; color: var(--mc-text-secondary, #A8A0B8); font-size: 12px;">
+                这里只是全局默认（给还没绑定的聊天做预填）。每个聊天实际写进哪本书，在结晶预览弹窗里确认，首次确认后记住为该聊天的绑定。写入时自动创建不存在的世界书。
+            </div>
+        </div>
+    </div>
+
+    <!-- 记忆结晶（默认展开） -->
+    <div class="mc-section">
+        <div class="mc-section-header" data-mc-section="crystallize" aria-expanded="true">
+            <span>记忆结晶</span>
+            <span class="mc-chevron mc-chevron-open">▾</span>
+        </div>
+        <div class="mc-section-body mc-open" id="mc-section-crystallize">
+            <div class="mc-range-row">
+                <span class="mc-range-label">楼层范围</span>
+                <div class="mc-range-inputs">
+                    <span class="mc-range-hash">#</span>
+                    <input class="mc-input mc-input-short" type="number" id="mc-floor-from"
+                           placeholder="起始" min="0" />
+                    <span class="mc-range-sep">→</span>
+                    <span class="mc-range-hash">#</span>
+                    <input class="mc-input mc-input-short" type="number" id="mc-floor-to"
+                           placeholder="结束" min="0" />
+                </div>
+            </div>
+            <button class="mc-btn mc-btn-outline mc-btn-full" id="mc-btn-preview">
+                预览提取内容
+            </button>
+            <div style="height: 8px;"></div>
+            <button class="mc-btn mc-btn-primary mc-btn-full" id="mc-btn-crystallize">
+                ✦ 开始结晶
+            </button>
+            <div id="mc-shimmer-bar"></div>
+            <div style="height: 8px;"></div>
+            <button class="mc-btn mc-btn-outline mc-btn-full" id="mc-btn-open-float">
+                ⌖ 浮动结晶面板（桌面端）
+            </button>
+
+            <!-- 手机端内联预览区（默认隐藏） -->
+            <div id="mc-inline-preview" style="display:none;">
+                <div class="mc-sheet-handle" title="点击收起"><span></span></div>
+                <div class="mc-inline-preview-header">
+                    <span class="mc-modal-title">提取预览</span>
+                    <span class="mc-modal-count" id="mc-inline-preview-count"></span>
+                </div>
+                <div class="mc-preview-list" id="mc-inline-preview-list"></div>
+                <div class="mc-inline-preview-actions">
+                    <button class="mc-btn mc-btn-outline mc-btn-full" id="mc-btn-inline-close">收起预览</button>
+                    <div style="height: 8px;"></div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="mc-btn mc-btn-primary" id="mc-btn-inline-confirm-immersive" style="flex: 1;">✦ 沉浸式结晶</button>
+                        <button class="mc-btn mc-btn-primary" id="mc-btn-inline-confirm-concise" style="flex: 1;">✦ 简洁式结晶</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase 4: 结晶预览内联容器（手机端用） -->
+            <div id="mc-crystal-inline"></div>
+        </div>
+    </div>
+
+    <!-- 条目管理 -->
+    <div class="mc-section">
+        <div class="mc-section-header" data-mc-section="entries" aria-expanded="true">
+            <span>条目管理</span>
+            <span class="mc-chevron mc-chevron-open">▾</span>
+        </div>
+        <div class="mc-section-body mc-open" id="mc-section-entries">
+            <div id="mc-entries-stats" class="mc-stats">加载中…</div>
+            <div id="mc-sync-hint" class="mc-sync-hint" style="display:none"></div>
+            <div class="mc-entries-toolbar">
+                <button type="button" class="mc-btn mc-btn-outline" id="mc-sync-from-wb">从世界书同步</button>
+                <button type="button" class="mc-btn mc-btn-text" id="mc-refresh-list">刷新</button>
+            </div>
+            <div id="mc-entries-list"></div>
+        </div>
+    </div>
+
+    <!-- 触发引擎（默认折叠） -->
+    <div class="mc-section">
+        <div class="mc-section-header" data-mc-section="trigger" aria-expanded="false">
+            <span>触发引擎</span>
+            <span class="mc-chevron">▾</span>
+        </div>
+        <div class="mc-section-body" id="mc-section-trigger">
+            <div class="mc-field">
+                <label class="mc-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="mc-trigger-enabled" />
+                    <span>启用自动触发注入</span>
+                </label>
+            </div>
+            <div class="mc-field">
+                <label class="mc-label" for="mc-trigger-window">匹配窗口（最近 N 条消息）</label>
+                <input class="mc-input" type="number" id="mc-trigger-window" min="1" max="20" />
+            </div>
+            <div class="mc-field">
+                <label class="mc-label" for="mc-trigger-budget">token 预算</label>
+                <input class="mc-input" type="number" id="mc-trigger-budget" min="100" max="8000" step="100" />
+            </div>
+            <div class="mc-field">
+                <label class="mc-label" for="mc-chat-cutoff">本聊天 · 记忆截止层</label>
+                <input class="mc-input" type="number" id="mc-chat-cutoff" min="0" step="1" placeholder="留空 = 不限制" />
+                <div class="mc-field-hint">从 #150 开分支 → 在分支聊天里填 150：其他时间线里"起始层 &gt; 150"的结晶不再触发，本聊天自己结晶的不受限。按聊天分别记忆，留空清除。</div>
+            </div>
+            <div class="mc-field">
+                <label class="mc-label" for="mc-trigger-position">注入位置</label>
+                <select class="mc-input" id="mc-trigger-position">
+                    <option value="in_chat">聊天中（IN_CHAT，按 depth）</option>
+                    <option value="after_system">剧情后锚点（IN_PROMPT）</option>
+                    <option value="before_prompt">剧情前锚点（BEFORE_PROMPT）</option>
+                </select>
+            </div>
+            <div class="mc-field">
+                <label class="mc-label" for="mc-trigger-depth">注入深度（仅 IN_CHAT 生效）</label>
+                <input class="mc-input" type="number" id="mc-trigger-depth" min="0" max="20" />
+            </div>
+            <button type="button" class="mc-btn mc-btn-outline mc-btn-full" id="mc-trigger-test">
+                手动测试触发
+            </button>
+        </div>
+    </div>
+
+    <!-- 触发日志（默认折叠） -->
+    <div class="mc-section">
+        <div class="mc-section-header" data-mc-section="trigger-log" aria-expanded="false">
+            <span>触发日志</span>
+            <span class="mc-chevron">▾</span>
+        </div>
+        <div class="mc-section-body" id="mc-section-trigger-log">
+            <div id="mc-trigger-log-content" class="mc-trigger-log">
+                <div class="mc-empty-hint">尚无触发记录</div>
+            </div>
+        </div>
+    </div>
+</div>

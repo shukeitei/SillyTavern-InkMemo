@@ -1,0 +1,1149 @@
+/* ============================================
+   落墨 InkMemo — V2 视觉语言
+   设计哲学: 深底纳光,胶囊浮玉
+   CSS 前缀: .mc-(预览弹窗子前缀 .mcp-)
+   ============================================ */
+
+/* === V2 设计 token === */
+:root {
+    /* L1 最外层容器 */
+    --mc-surface-shell: #13161E;
+    --mc-surface-shell-border: rgba(255, 255, 255, 0.06);
+
+    /* L2 中间嵌入层 */
+    --mc-surface-well: rgba(8, 10, 14, 0.92);
+    --mc-surface-well-border: rgba(180, 200, 255, 0.10);
+    --mc-surface-well-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+    /* 文字四级 */
+    --mc-text-primary: #F0F3F8;
+    --mc-text-mid: #A8AFBE;
+    --mc-text-low: #6B7388;
+    --mc-text-faint: #4A5060;
+
+    /* V1 兼容别名(直接赋同值,不用 var() 引用避免作用域链失效) */
+    --mc-text-secondary: #A8AFBE;
+    --mc-text-disabled: #4A5060;
+    --mc-surface-dim: #13161E;
+    --mc-surface: #13161E;
+    --mc-surface-bright: #13161E;
+    --mc-surface-container-lowest: #0E1118;
+    --mc-surface-container-low: #13161E;
+    --mc-surface-container: #13161E;
+    --mc-surface-container-high: rgba(8, 10, 14, 0.92);
+    --mc-surface-container-highest: rgba(8, 10, 14, 0.92);
+    --mc-primary: #F8A672;
+    --mc-primary-light: #FFCDA8;
+    --mc-primary-dark: #C47F3A;
+    --mc-primary-container: rgba(245, 138, 92, 0.18);
+    --mc-on-primary: #FFCDA8;
+    --mc-on-primary-container: #FFCDA8;
+
+    /* 功能色(系统反馈) */
+    --mc-success: #A8D5A2;
+    --mc-warning: #F4A261;
+    --mc-error: #E76F6F;
+    --mc-info: #7EC8E3;
+
+    /* 边框 */
+    --mc-outline: rgba(255, 255, 255, 0.10);
+    --mc-outline-variant: rgba(255, 255, 255, 0.06);
+
+    /* 圆角 */
+    --mc-radius-xs: 4px;
+    --mc-radius-sm: 8px;
+    --mc-radius-md: 12px;
+    --mc-radius-lg: 16px;
+    --mc-radius-xl: 24px;
+    --mc-radius-full: 9999px;
+}
+
+/* === 面板容器 === */
+.mc-panel {
+    font-family: 'Google Sans', 'Noto Sans SC', system-ui, sans-serif;
+    color: var(--mc-text-primary);
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 0 16px 16px 16px;
+}
+
+/* === 标题区 === */
+.mc-header { padding: 16px 0 12px 0; text-align: left; }
+.mc-title { font-size: 20px; font-weight: 600; color: #F8A672; letter-spacing: 0.02em; }
+.mc-subtitle { font-size: 13px; color: var(--mc-text-mid); margin-top: 4px; }
+
+/* === 折叠区 === */
+.mc-section { border-bottom: 1px solid var(--mc-outline-variant); }
+.mc-section:last-child { border-bottom: none; }
+.mc-section-header {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    cursor: pointer;
+    color: var(--mc-text-primary);
+    font-weight: 500;
+    font-size: 14px;
+    user-select: none;
+    position: relative;
+    overflow: hidden;
+}
+.mc-section-header.mc-disabled { cursor: default; color: var(--mc-text-faint); }
+.mc-chevron { font-size: 12px; transition: transform 0.25s ease; color: var(--mc-text-mid); }
+.mc-chevron-open { transform: rotate(180deg); }
+.mc-section-body {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.3s ease;
+    padding: 0;
+}
+.mc-section-body.mc-open { max-height: 9999px; padding: 0 0 16px 0; }
+
+/* === 输入框 === */
+.mc-field { margin-bottom: 12px; }
+.mc-label { display: block; font-size: 12px; color: var(--mc-text-mid); margin-bottom: 6px; font-weight: 500; }
+.mc-input {
+    min-height: 48px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 0.5px solid rgba(255, 255, 255, 0.10);
+    border-radius: var(--mc-radius-sm);
+    padding: 12px 16px;
+    color: var(--mc-text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s ease, background 0.2s ease;
+    width: 100%;
+    box-sizing: border-box;
+}
+.mc-input:focus {
+    border-color: rgba(245, 138, 92, 0.55);
+    background: rgba(255, 255, 255, 0.04);
+    outline: none;
+}
+.mc-input::placeholder { color: var(--mc-text-faint); }
+
+/* === 楼层范围行 === */
+.mc-range-row { margin-bottom: 16px; }
+.mc-range-label { display: block; font-size: 12px; color: var(--mc-text-mid); margin-bottom: 8px; font-weight: 500; }
+.mc-range-inputs { display: flex; align-items: center; gap: 8px; }
+.mc-range-hash { color: var(--mc-text-low); font-size: 14px; font-weight: 500; }
+.mc-range-sep { color: var(--mc-text-low); font-size: 14px; }
+.mc-input-short {
+    width: 80px;
+    min-width: 80px;
+    flex: 0 0 auto;
+    text-align: center;
+    -moz-appearance: textfield;
+}
+.mc-input-short::-webkit-outer-spin-button,
+.mc-input-short::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* === 按钮分级体系(V2 重构)=== */
+/* 公共基类:大型默认 round-full,涟漪动效需要 overflow:hidden + position:relative */
+.mc-btn {
+    min-height: 48px;
+    padding: 12px 24px;
+    border-radius: 9999px;
+    font-weight: 500;
+    font-size: 14px;
+    font-family: inherit;
+    letter-spacing: 0.02em;
+    border: 0.5px solid transparent;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.2s ease, transform 0.1s ease, border-color 0.2s ease;
+    user-select: none;
+    background: transparent;
+    color: var(--mc-text-primary);
+}
+.mc-btn:active { transform: scale(0.97); }
+
+/* 小型按钮:32px 高、6px round、12px 字 */
+.mc-btn-sm {
+    min-height: 32px;
+    padding: 6px 16px;
+    font-size: 12px;
+    border-radius: 6px;
+}
+
+/* 一级:橘色 anchor —— 保存、确认、开始结晶等关键提交
+   橘色 anchor 档位:
+   主按钮 0.55/0.75 > 必须词 0.32/0.55 > 阈值 0.22/0.65 > 类型标签 0.24/0.42 > 核心词 0.14/0.30
+   档位差不可一刀切提升,必须保留递减梯度。
+   橘色档位调整时,青蓝系(knowledge/user-role)按相同比例联动 */
+.mc-btn-primary {
+    background-color: #141C2E;
+    background-image: linear-gradient(135deg, rgba(245, 138, 92, 0.55), rgba(245, 138, 92, 0.35));
+    border-color: rgba(245, 138, 92, 0.75);
+    color: #FFCDA8;
+    box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
+}
+.mc-btn-primary:hover {
+    background-image: linear-gradient(135deg, rgba(245, 138, 92, 0.65), rgba(245, 138, 92, 0.42));
+}
+
+/* 二级:中性描边(取消、关闭、次要动作)—— mc-btn-outline 视为别名 */
+.mc-btn-secondary,
+.mc-btn-outline {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: var(--mc-text-mid);
+}
+.mc-btn-secondary:hover,
+.mc-btn-outline:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.20);
+    color: var(--mc-text-primary);
+}
+
+/* 三级:幽灵 —— 恢复推导、刷新等次要动作 */
+/* mc-btn-text 视为 ghost 别名(V2 已废弃 text) */
+.mc-btn-ghost,
+.mc-btn-text {
+    background: rgba(255, 255, 255, 0.03);
+    border: 0.5px solid rgba(255, 255, 255, 0.12);
+    color: var(--mc-text-mid);
+    font-size: 11px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    cursor: pointer;
+    min-height: auto;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.mc-btn-ghost:hover,
+.mc-btn-text:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--mc-text-primary);
+    border-color: rgba(255, 255, 255, 0.20);
+}
+
+.mc-btn-full { width: 100%; }
+
+/* === 涟漪 === */
+.mc-ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(245, 138, 92, 0.25);
+    transform: scale(0);
+    animation: mc-ripple-expand 0.5s ease-out forwards;
+    pointer-events: none;
+}
+@keyframes mc-ripple-expand { to { transform: scale(1); opacity: 0; } }
+
+/* === 金粉 Shimmer === */
+.mc-shimmer {
+    background: linear-gradient(110deg,
+        var(--mc-surface-shell) 30%,
+        rgba(245, 138, 92, 0.14) 50%,
+        var(--mc-surface-shell) 70%);
+    background-size: 200% 100%;
+    animation: mc-shimmer-flow 1.8s ease infinite;
+}
+@keyframes mc-shimmer-flow {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* === 徽章 === */
+.mc-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: var(--mc-radius-xs);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--mc-text-faint);
+}
+
+/* === 通用动画 === */
+@keyframes mc-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mc-slide-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+
+/* === 响应式 === */
+@media (max-width: 600px) {
+    .mc-panel { padding: 0 12px 12px 12px; }
+    .mc-header { padding: 12px 0 8px 0; }
+}
+
+/* ============ Phase 2: 提取预览 ============ */
+.mc-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50000;
+    animation: mc-fade-in 0.2s ease;
+    backdrop-filter: blur(2px);
+}
+.mc-modal {
+    background: var(--mc-surface-well);
+    border: 0.5px solid var(--mc-surface-well-border);
+    box-shadow: var(--mc-surface-well-inset), 0 16px 48px rgba(0, 0, 0, 0.6);
+    border-radius: var(--mc-radius-xl);
+    padding: 24px;
+    max-width: 640px;
+    width: 90vw;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    animation: mc-slide-up 0.3s ease;
+    backdrop-filter: blur(8px);
+}
+.mc-modal-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+.mc-modal-title { font-size: 18px; font-weight: 600; color: #F8A672; }
+.mc-modal-count { font-size: 13px; color: var(--mc-text-mid); }
+.mc-modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.mc-modal-footer .mc-btn { min-width: 100px; }
+
+.mc-preview-list {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--mc-outline) transparent;
+}
+/* === 预览消息卡片(V2 胶囊化磨砂玉片)=== */
+.mc-msg-card {
+    background: linear-gradient(135deg, rgba(35, 46, 72, 0.40), rgba(18, 24, 40, 0.50));
+    border: 0.5px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* 角色标识胶囊 — AI 默认走橘(anchor 档位 4,跟 .mc-tag-memory 同档) */
+.mc-tag-character {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: linear-gradient(135deg, rgba(245, 138, 92, 0.24), rgba(35, 46, 72, 0.55));
+    border: 0.5px solid rgba(245, 138, 92, 0.42);
+    color: #F8A672;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 9px;
+    border-radius: 999px;
+    margin-bottom: 8px;
+}
+
+/* 用户角色走青蓝(跟 .mc-tag-knowledge 同档,冷暖对称) */
+.mc-tag-character[data-role="user"] {
+    background: linear-gradient(135deg, rgba(126, 200, 227, 0.24), rgba(35, 46, 72, 0.55));
+    border-color: rgba(126, 200, 227, 0.42);
+    color: #7EC8E3;
+}
+
+.mc-msg-content {
+    color: var(--mc-text-primary);
+    font-size: 13px;
+    line-height: 1.65;
+    word-break: break-word;
+}
+.mc-msg-content summary,
+.mc-msg-content code {
+    color: var(--mc-text-low);
+    font-size: 11px;
+}
+
+.mc-preview-empty { text-align: center; padding: 32px 0; color: var(--mc-text-faint); font-size: 14px; }
+
+#mc-inline-preview {
+    margin-top: 12px;
+    border-top: 0.5px solid var(--mc-outline-variant);
+    padding-top: 12px;
+}
+.mc-inline-preview-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+#mc-inline-preview .mc-preview-list { max-height: 45vh; overflow-y: auto; margin-bottom: 12px; }
+.mc-inline-preview-actions { margin-top: 8px; padding-bottom: 32px; }
+
+/* Modal 内按钮(脱离 #mc-panel 作用域) */
+.mc-modal-overlay .mc-btn {
+    min-height: 48px;
+    padding: 12px 24px;
+    border-radius: 9999px;
+    font-weight: 500;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    border: 0.5px solid transparent;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.2s ease, transform 0.1s ease;
+    background: transparent;
+}
+.mc-modal-overlay .mc-btn:active { transform: scale(0.97); }
+.mc-modal-overlay .mc-btn-primary {
+    background-color: #141C2E;
+    background-image: linear-gradient(135deg, rgba(245, 138, 92, 0.55), rgba(245, 138, 92, 0.35));
+    border-color: rgba(245, 138, 92, 0.75);
+    color: #FFCDA8;
+    box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
+}
+.mc-modal-overlay .mc-btn-outline,
+.mc-modal-overlay .mc-btn-secondary {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: var(--mc-text-mid);
+}
+
+/* === Phase 3: 结晶加载条 === */
+#mc-shimmer-bar { height: 3px; border-radius: 2px; margin: 8px 0 0 0; display: none; }
+#mc-shimmer-bar.mc-shimmer { display: block; }
+
+/* ============ Phase 4: 结晶预览弹窗 ============ */
+#mc-crystal-preview-overlay .mc-crystal-preview {
+    max-width: 720px; max-height: 88vh; overflow-y: auto; padding: 24px;
+}
+#mc-crystal-inline { display: none; padding: 4px 0; }
+
+.mcp-header { padding: 0 0 16px 0; }
+.mcp-title { font-size: 18px; font-weight: 600; color: #F8A672; }
+.mcp-subtitle { font-size: 13px; color: var(--mc-text-mid); margin-top: 4px; }
+
+.mcp-section { border-bottom: 0.5px solid var(--mc-outline-variant); }
+.mcp-section:last-of-type { border-bottom: none; }
+
+/* 分区折叠头(回忆录 (N) / 角色知识库 (N)):淡冷调底色,跟纯文字和暖橙卡片区分,提示"这是可点的区域" */
+.mcp-section-header {
+    background: rgba(180, 200, 255, 0.055);
+    border: 0.5px solid rgba(180, 200, 255, 0.09);
+    border-radius: var(--mc-radius-sm);
+    padding: 12px 14px;
+    margin: 10px 0;
+}
+.mcp-section-header:hover { background: rgba(180, 200, 255, 0.09); }
+
+.mcp-card {
+    background: rgba(255, 255, 255, 0.025);
+    border: 0.5px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--mc-radius-md);
+    padding: 16px;
+    margin-bottom: 12px;
+    border-left: 3px solid #F8A672;
+}
+.mcp-card:last-child { margin-bottom: 4px; }
+
+.mcp-card .mcp-field-title {
+    font-weight: 600; font-size: 15px;
+    background: transparent;
+    border: 0.5px solid transparent;
+    padding: 8px 12px;
+    min-height: 40px;
+    color: #F8A672;
+}
+.mcp-card .mcp-field-title:focus {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(245, 138, 92, 0.55);
+}
+
+.mcp-meta-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.mcp-meta-item { display: flex; flex-direction: column; flex: 1; min-width: 100px; }
+.mcp-meta-item-wide { flex: 2; min-width: 160px; }
+.mcp-meta-label { font-size: 11px; color: var(--mc-text-faint); margin-bottom: 4px; padding-left: 4px; }
+.mcp-meta-item .mc-input { min-height: 36px; font-size: 13px; padding: 6px 10px; }
+
+.mcp-content-toggle {
+    display: flex; align-items: center; gap: 8px;
+    min-height: 40px; padding: 8px 12px;
+    cursor: pointer; font-size: 13px; font-weight: 500;
+    color: var(--mc-text-primary); margin-top: 8px;
+    /* 同分区头:淡冷调底色标记可展开行(正文) */
+    background: rgba(180, 200, 255, 0.05);
+    border: 0.5px solid rgba(180, 200, 255, 0.09);
+    border-radius: var(--mc-radius-sm);
+}
+.mcp-content-toggle:hover { background: rgba(180, 200, 255, 0.085); }
+.mcp-content-hint {
+    flex: 1; color: var(--mc-text-faint); font-weight: 400; font-size: 12px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mcp-content-toggle .mc-chevron { transition: transform 0.25s ease; }
+.mcp-content-toggle[aria-expanded="true"] .mc-chevron { transform: rotate(180deg); }
+
+.mcp-content-area { min-height: 80px; max-height: 300px; font-size: 13px; line-height: 1.7; resize: vertical; margin-top: 4px; }
+.mcp-kb-content { min-height: 60px; max-height: 200px; font-size: 13px; line-height: 1.7; resize: vertical; margin-top: 10px; }
+
+.mcp-keywords-group { margin-top: 12px; }
+.mcp-kw-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+.mcp-kw-row:last-child { margin-bottom: 0; }
+.mcp-kw-label { font-size: 11px; color: var(--mc-text-faint); min-width: 42px; padding-top: 7px; flex-shrink: 0; text-align: right; }
+
+.mcp-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1; min-height: 32px; }
+
+/* 预览弹窗里的标签药丸(用 V2 any 风格,不语义化) */
+.mcp-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: linear-gradient(135deg, rgba(45, 58, 84, 0.65), rgba(20, 28, 46, 0.55));
+    color: #D5DCEA;
+    border: 0.5px solid rgba(255, 255, 255, 0.10);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: var(--mc-radius-full);
+    white-space: nowrap;
+    line-height: 1.4;
+    backdrop-filter: blur(6px);
+}
+.mcp-tag-x { cursor: pointer; opacity: 0.5; font-size: 13px; margin-left: 2px; padding: 0 2px; transition: opacity 0.15s; }
+.mcp-tag-x:hover { opacity: 1; }
+
+.mcp-tag-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--mc-text-primary);
+    font-size: 12px;
+    min-width: 80px;
+    max-width: 120px;
+    padding: 4px 0;
+}
+.mcp-tag-input::placeholder { color: var(--mc-text-faint); font-size: 11px; }
+
+.mcp-actions {
+    display: flex; justify-content: flex-end; gap: 12px;
+    padding-top: 20px; margin-top: 8px;
+    border-top: 0.5px solid var(--mc-outline-variant);
+}
+
+#mc-crystal-preview-overlay .mc-btn {
+    min-height: 48px; padding: 12px 24px; border-radius: 9999px;
+    font-weight: 500; font-size: 14px; letter-spacing: 0.02em;
+    border: 0.5px solid transparent;
+    cursor: pointer; transition: background 0.2s ease, transform 0.1s ease;
+    background: transparent;
+}
+#mc-crystal-preview-overlay .mc-btn:active { transform: scale(0.97); }
+#mc-crystal-preview-overlay .mc-btn-primary {
+    background-color: #141C2E;
+    background-image: linear-gradient(135deg, rgba(245, 138, 92, 0.55), rgba(245, 138, 92, 0.35));
+    border-color: rgba(245, 138, 92, 0.75);
+    color: #FFCDA8;
+    box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
+}
+#mc-crystal-preview-overlay .mc-btn-outline,
+#mc-crystal-preview-overlay .mc-btn-secondary {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: var(--mc-text-mid);
+}
+#mc-crystal-preview-overlay .mc-input {
+    min-height: 48px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 0.5px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px; padding: 12px 16px;
+    color: var(--mc-text-primary);
+    font-size: 14px;
+    transition: border-color 0.2s ease;
+    width: 100%; box-sizing: border-box;
+}
+#mc-crystal-preview-overlay .mc-input:focus { border-color: rgba(245, 138, 92, 0.55); outline: none; }
+#mc-crystal-preview-overlay .mc-input::placeholder { color: var(--mc-text-faint); }
+
+#mc-crystal-preview-overlay.mcp-closing { animation: mc-fade-out 0.2s ease forwards; }
+#mc-crystal-preview-overlay.mcp-closing .mc-modal { animation: mc-slide-down 0.2s ease forwards; }
+@keyframes mc-fade-out { to { opacity: 0; } }
+@keyframes mc-slide-down { to { opacity: 0; transform: translateY(24px); } }
+
+@media (max-width: 600px) {
+    .mcp-meta-row { flex-direction: column; gap: 6px; }
+    .mcp-meta-item, .mcp-meta-item-wide { min-width: 0; }
+    .mcp-kw-row { flex-direction: column; gap: 4px; }
+    .mcp-kw-label { text-align: left; padding-top: 0; }
+    .mcp-actions { flex-direction: column; }
+    .mcp-actions .mc-btn { width: 100%; }
+}
+
+/* ============ Phase 6: 条目管理 ============ */
+.mc-stats { color: var(--mc-text-mid); font-size: 13px; margin-bottom: 10px; }
+.mc-entries-toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.mc-empty { color: var(--mc-text-faint); font-size: 13px; text-align: center; padding: 24px 0; }
+
+.mc-scope-group { margin-bottom: 14px; }
+.mc-scope-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; cursor: pointer;
+    color: var(--mc-text-mid);
+    font-size: 12px; letter-spacing: 0.05em;
+    border-bottom: 0.5px solid var(--mc-outline-variant);
+    user-select: none;
+}
+.mc-scope-label { display: flex; align-items: center; gap: 6px; }
+.mc-scope-current {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 10px;
+    background: rgba(245, 138, 92, 0.18);
+    color: #FFCDA8;
+    border: 0.5px solid rgba(245, 138, 92, 0.35);
+    border-radius: var(--mc-radius-full);
+}
+.mc-scope-count {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--mc-text-mid);
+    padding: 1px 8px;
+    border-radius: var(--mc-radius-full);
+    font-size: 11px;
+}
+.mc-scope-collapsed + .mc-scope-body { display: none; }
+.mc-scope-body { padding: 8px 0 4px; }
+
+/* 条目卡片(L1 surface-shell)*/
+.mc-entry-row {
+    background: var(--mc-surface-shell);
+    border: 0.5px solid var(--mc-surface-shell-border);
+    border-radius: var(--mc-radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    transition: opacity 0.2s ease, border-color 0.2s ease;
+}
+.mc-entry-row.mc-entry-disabled { opacity: 0.45; }
+.mc-entry-row.mc-entry-expanded { border-color: rgba(245, 138, 92, 0.30); }
+
+.mc-entry-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; min-width: 0; }
+.mc-entry-tag {
+    flex-shrink: 0;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: var(--mc-radius-full);
+    font-weight: 500;
+    border: 0.5px solid transparent;
+}
+/* anchor 档位 4:类型标签(橘/青蓝同档,冷暖对称) */
+.mc-tag-memory {
+    background: linear-gradient(135deg, rgba(245, 138, 92, 0.24), rgba(35, 46, 72, 0.55));
+    border-color: rgba(245, 138, 92, 0.42);
+    color: #F8A672;
+}
+.mc-tag-knowledge {
+    background: linear-gradient(135deg, rgba(126, 200, 227, 0.24), rgba(35, 46, 72, 0.55));
+    border-color: rgba(126, 200, 227, 0.42);
+    color: #7EC8E3;
+}
+.mc-entry-title {
+    font-size: 14px; color: var(--mc-text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1; min-width: 0;
+}
+.mc-entry-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; font-size: 12px; color: var(--mc-text-mid);
+}
+.mc-entry-meta { font-size: 11px; }
+.mc-entry-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.mc-toggle {
+    position: relative; display: inline-block;
+    width: 36px; height: 20px;
+    cursor: pointer; flex-shrink: 0;
+}
+.mc-toggle input { opacity: 0; width: 0; height: 0; }
+.mc-toggle-slider {
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(45, 58, 84, 0.65), rgba(20, 28, 46, 0.55));
+    border: 0.5px solid rgba(255, 255, 255, 0.10);
+    border-radius: 20px;
+    transition: border-color 0.2s ease;
+}
+.mc-toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    left: 2px; top: 2px;
+    background: #6B7388;
+    border-radius: 50%;
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+.mc-toggle input:checked + .mc-toggle-slider {
+    border-color: rgba(207, 255, 77, 0.50);
+}
+.mc-toggle input:checked + .mc-toggle-slider::before {
+    transform: translateX(18px);
+    background: #CFFF4D;
+}
+
+.mc-icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--mc-text-mid);
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px; line-height: 1;
+    padding: 0;
+    transition: background 0.2s ease, color 0.2s ease;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.mc-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--mc-text-primary);
+}
+.mc-entry-delete:hover { color: var(--mc-error); }
+.mc-entry-edit:hover { color: #F8A672; background: rgba(245, 138, 92, 0.10); }
+.mc-entry-row.mc-entry-expanded .mc-entry-edit { color: #F8A672; background: rgba(245, 138, 92, 0.15); }
+
+/* ============ Phase 8: 触发引擎设置 + 触发日志 ============ */
+.mc-trigger-log { font-size: 13px; color: var(--mc-text-primary); }
+.mc-trigger-summary { color: var(--mc-text-mid); margin-bottom: 12px; line-height: 1.6; }
+.mc-trigger-hits { list-style: none; padding: 0; margin: 0; }
+.mc-trigger-hits li {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 0.5px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--mc-radius-sm);
+    margin-bottom: 8px;
+}
+.mc-trigger-hit-title { color: var(--mc-text-primary); font-weight: 500; }
+.mc-trigger-hit-meta { color: var(--mc-text-mid); font-size: 12px; margin-top: 2px; }
+.mc-trigger-hit-words { color: var(--mc-text-faint); font-size: 11px; margin-top: 4px; line-height: 1.5; word-break: break-all; }
+.mc-trigger-match { color: var(--mc-text-mid); font-size: 12px; margin-top: 8px; }
+.mc-trigger-match-preview {
+    color: var(--mc-text-faint); font-size: 11px;
+    background: rgba(0, 0, 0, 0.30);
+    border: 0.5px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--mc-radius-sm);
+    padding: 6px 10px; margin-top: 4px; line-height: 1.5;
+    white-space: pre-wrap; word-break: break-all;
+    max-height: 120px; overflow-y: auto;
+}
+.mc-empty-hint { color: var(--mc-text-faint); font-style: italic; padding: 8px 0; }
+
+/* ============================================
+   Phase 10.1: trigger 编辑器 + 胶囊系统(V2 核心)
+   ============================================ */
+
+/* === 编辑器容器(L2 井)=== */
+.mc-trigger-editor {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.32s ease;
+}
+.mc-trigger-editor.mc-open { max-height: 1200px; }
+
+.mc-trigger-editor-inner {
+    margin-top: 10px;
+    padding: 14px;
+    background: var(--mc-surface-well);
+    border: 0.5px solid var(--mc-surface-well-border);
+    border-radius: var(--mc-radius-md);
+    box-shadow: var(--mc-surface-well-inset);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.mc-trigger-editor-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; flex-wrap: wrap; gap: 6px;
+}
+
+/* 状态标识 — V2 mc-tag-status(已编辑,黄绿光晕) */
+.mc-tag-status {
+    display: inline-block;
+    background: linear-gradient(135deg, rgba(207, 255, 77, 0.24), rgba(35, 46, 72, 0.45));
+    border: 0.5px solid rgba(207, 255, 77, 0.45);
+    color: #CFFF4D;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 9px;
+    border-radius: 999px;
+}
+
+/* 状态标识 — 自动推导态(中性灰调) */
+.mc-tag-status-auto {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.04);
+    border: 0.5px solid rgba(255, 255, 255, 0.10);
+    color: var(--mc-text-low);
+    font-size: 11px;
+    padding: 2px 9px;
+    border-radius: 999px;
+}
+
+/* === 胶囊系统(V2)=== */
+.mc-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 5px 4px 10px;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.3;
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
+    transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.mc-pill-x {
+    font-size: 12px;
+    opacity: 0.5;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    transition: opacity 0.15s ease;
+}
+.mc-pill-x:hover { opacity: 1; }
+
+.mc-pill.mc-pill-removing { animation: mc-pill-shrink 0.2s ease forwards; }
+@keyframes mc-pill-shrink { to { transform: scale(0.85); opacity: 0; } }
+
+/* 必须词:橘强光晕(anchor 档位 2,弱于主按钮一档) */
+.mc-pill-must {
+    background: linear-gradient(135deg,
+        rgba(245, 138, 92, 0.32) 0%,
+        rgba(35, 46, 72, 0.55) 55%,
+        rgba(18, 24, 40, 0.55) 100%);
+    border: 0.5px solid rgba(245, 138, 92, 0.55);
+    color: #F8A672;
+}
+
+/* 核心词:橘弱光晕(anchor 档位 5,最弱) */
+.mc-pill-core {
+    background: linear-gradient(135deg,
+        rgba(245, 138, 92, 0.14) 0%,
+        rgba(35, 46, 72, 0.55) 50%,
+        rgba(18, 24, 40, 0.55) 100%);
+    border: 0.5px solid rgba(245, 138, 92, 0.30);
+    color: #FFCDA8;
+}
+
+/* 一般词:纯蓝磨砂 */
+.mc-pill-any {
+    background: linear-gradient(135deg, rgba(45, 58, 84, 0.65), rgba(20, 28, 46, 0.55));
+    border: 0.5px solid rgba(255, 255, 255, 0.10);
+    color: #D5DCEA;
+}
+
+/* 加分词:黄绿光晕 */
+.mc-pill-boost {
+    background: linear-gradient(135deg,
+        rgba(207, 255, 77, 0.20) 0%,
+        rgba(35, 46, 72, 0.55) 55%,
+        rgba(18, 24, 40, 0.55) 100%);
+    border: 0.5px solid rgba(207, 255, 77, 0.45);
+    color: #CFFF4D;
+}
+
+/* 排除词:深磨砂 + 删除线(幽灵化) */
+.mc-pill-exclude {
+    background: linear-gradient(135deg, rgba(28, 34, 48, 0.55), rgba(15, 18, 28, 0.50));
+    border: 0.5px solid rgba(255, 255, 255, 0.06);
+    color: #6B7388;
+    text-decoration: line-through;
+    text-decoration-color: rgba(107, 115, 136, 0.60);
+}
+
+/* === 五栏药丸行 === */
+.mc-pill-row { margin-bottom: 12px; }
+.mc-pill-row-head {
+    display: flex; align-items: baseline;
+    gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
+}
+.mc-pill-row-label { color: var(--mc-text-primary); font-size: 12px; font-weight: 500; }
+.mc-pill-row-hint { color: var(--mc-text-low); font-size: 11px; }
+
+.mc-pill-list {
+    display: flex; flex-wrap: wrap; gap: 5px;
+    align-items: center; min-height: 32px;
+}
+
+/* 添加药丸的输入框 — 视觉与 mc-pill-add 一致(虚线黄绿) */
+.mc-pill-input {
+    background: rgba(255, 255, 255, 0.02);
+    border: 0.5px dashed rgba(207, 255, 77, 0.50);
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 12px;
+    color: #CFFF4D;
+    outline: none;
+    min-width: 80px;
+    max-width: 140px;
+    font-family: inherit;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+.mc-pill-input:focus {
+    background: rgba(207, 255, 77, 0.06);
+    border-style: solid;
+    border-color: rgba(207, 255, 77, 0.55);
+    color: var(--mc-text-primary);
+}
+.mc-pill-input::placeholder { color: rgba(207, 255, 77, 0.55); font-size: 11px; }
+
+/* === 阈值行(Anchor 1: mc-input-threshold)=== */
+.mc-trigger-threshold-row {
+    display: flex; align-items: center;
+    gap: 10px; margin-top: 14px;
+    padding-top: 12px;
+    border-top: 0.5px solid rgba(255, 255, 255, 0.05);
+    flex-wrap: wrap;
+}
+.mc-trigger-threshold-label {
+    color: var(--mc-text-primary); font-size: 12px; font-weight: 500;
+    flex-shrink: 0;
+}
+
+.mc-input-threshold {
+    width: 52px;
+    /* anchor 档位 3:参数级 */
+    background: linear-gradient(135deg, rgba(245, 138, 92, 0.22), rgba(20, 28, 46, 0.55));
+    border: 0.5px solid rgba(245, 138, 92, 0.65);
+    color: #F8A672;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px 6px;
+    font-family: inherit;
+    outline: none;
+    -moz-appearance: textfield;
+    transition: border-color 0.2s ease;
+}
+.mc-input-threshold:focus { border-color: rgba(245, 138, 92, 0.85); }
+.mc-input-threshold::-webkit-outer-spin-button,
+.mc-input-threshold::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.mc-trigger-threshold-hint {
+    color: var(--mc-text-low);
+    font-size: 11px;
+    flex: 1; min-width: 200px;
+    line-height: 1.4;
+}
+
+/* === 编辑器底部按钮区 === */
+.mc-trigger-editor-actions {
+    display: flex; justify-content: flex-end;
+    gap: 8px; margin-top: 14px;
+}
+
+@media (max-width: 600px) {
+    .mc-trigger-editor-inner { padding: 12px; }
+    .mc-trigger-threshold-hint { min-width: 0; flex-basis: 100%; }
+}
+
+/* ── 结晶预览 · 写入目标区 ── */
+.mcp-target {
+    margin: 10px 0 4px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid transparent;
+}
+.mcp-target-status {
+    font-size: 12px;
+    color: var(--mc-text-secondary, #A8A0B8);
+    margin-bottom: 6px;
+}
+.mcp-target-unbound {
+    background: rgba(232, 163, 61, 0.08);
+    border-color: rgba(232, 163, 61, 0.4);
+}
+.mcp-target-unbound .mcp-target-status {
+    color: #E8A33D;
+}
+.mcp-target-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+.mcp-target-label {
+    font-size: 12px;
+    color: var(--mc-text-secondary, #A8A0B8);
+    white-space: nowrap;
+    width: 42px;
+}
+.mcp-target-row .mc-input {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 写入目标 · 确定按钮与已确认态 */
+.mcp-target-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+.mcp-target-confirmed {
+    background: rgba(110, 200, 140, 0.07);
+    border-color: rgba(110, 200, 140, 0.4);
+}
+.mcp-target-confirmed .mcp-target-status {
+    color: #7DC68F;
+}
+.mcp-confirm.mcp-locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ============ 时间线分桶 + 记忆截止层 ============ */
+.mc-timeline-group { margin-bottom: 10px; }
+.mc-timeline-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 2px; cursor: pointer;
+    color: var(--mc-text-mid);
+    font-size: 12px;
+    user-select: none;
+}
+.mc-timeline-label {
+    display: flex; align-items: center; gap: 6px;
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mc-timeline-count {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--mc-text-mid);
+    padding: 1px 8px;
+    border-radius: var(--mc-radius-full);
+    font-size: 11px;
+    flex-shrink: 0;
+}
+.mc-timeline-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.mc-timeline-body { padding: 4px 0 0 8px; border-left: 1px solid var(--mc-outline-variant); margin-left: 4px; }
+.mc-timeline-disabled .mc-timeline-body { opacity: 0.45; }
+.mc-timeline-disabled .mc-timeline-label { opacity: 0.6; text-decoration: line-through; }
+
+.mc-entry-foot-meta { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
+.mc-entry-range {
+    font-size: 10px;
+    padding: 1px 6px;
+    background: rgba(126, 200, 227, 0.10);
+    color: #7EC8E3;
+    border: 0.5px solid rgba(126, 200, 227, 0.25);
+    border-radius: var(--mc-radius-full);
+    flex-shrink: 0;
+}
+
+.mc-field-hint { margin-top: 6px; color: var(--mc-text-secondary, #A8A0B8); font-size: 12px; line-height: 1.5; }
+
+/* ============ 浮动结晶面板 ============ */
+#mc-float-panel {
+    position: fixed;
+    top: 80px;
+    right: 24px;
+    width: 280px;
+    /* 低于 .mc-modal-overlay(50000):提取预览/结晶预览弹窗照常盖在面板上 */
+    z-index: 49500;
+    background: var(--mc-surface-well);
+    border: 0.5px solid var(--mc-surface-well-border);
+    box-shadow: var(--mc-surface-well-inset), 0 12px 36px rgba(0, 0, 0, 0.55);
+    border-radius: var(--mc-radius-lg);
+    padding: 0 14px 14px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    font-family: 'Google Sans', 'Noto Sans SC', system-ui, sans-serif;
+    color: var(--mc-text-primary);
+    font-size: 14px;
+    box-sizing: border-box;
+    animation: mc-slide-up 0.25s ease;
+}
+.mc-fp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0 8px;
+    cursor: move;
+    user-select: none;
+    touch-action: none;
+}
+.mc-fp-title { font-size: 14px; font-weight: 600; color: #F8A672; letter-spacing: 0.02em; }
+.mc-fp-close {
+    background: transparent;
+    border: none;
+    color: var(--mc-text-mid);
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px; line-height: 1;
+    padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+.mc-fp-close:hover { background: rgba(255, 255, 255, 0.06); color: var(--mc-text-primary); }
+.mc-fp-status { font-size: 12px; color: var(--mc-text-mid); margin-bottom: 10px; line-height: 1.5; }
+.mc-fp-range { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+#mc-float-panel .mc-fp-input {
+    width: 64px; min-width: 64px; flex: 0 0 auto;
+    min-height: 36px;
+    padding: 6px 8px;
+    text-align: center;
+    -moz-appearance: textfield;
+}
+#mc-float-panel .mc-fp-input::-webkit-outer-spin-button,
+#mc-float-panel .mc-fp-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+#mc-float-panel .mc-fp-btn { min-height: 40px; padding: 8px 16px; font-size: 13px; }
+.mc-fp-modes { display: flex; gap: 8px; margin-top: 8px; }
+.mc-fp-modes .mc-btn { flex: 1; min-height: 40px; padding: 8px 10px; font-size: 13px; }
+#mc-fp-shimmer { height: 3px; border-radius: 2px; margin-top: 8px; display: none; }
+#mc-fp-shimmer.mc-shimmer { display: block; }
+
+/* ============ Phase 10.2: 建议同步红点 ============ */
+/* 「从世界书同步」按钮红点:功能色 error(系统反馈层,不进橘色 anchor) */
+#mc-sync-from-wb.mc-has-diff::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--mc-error);
+    box-shadow: 0 0 6px rgba(231, 111, 111, 0.55);
+}
+.mc-sync-hint {
+    color: var(--mc-warning);
+    font-size: 12px;
+    line-height: 1.5;
+    margin: -4px 0 10px;
+}
+.mc-sync-hint.mc-sync-hint-neutral { color: var(--mc-text-low); }
+
+/* ============ Phase 10.3: UI 打磨 ============ */
+/* 涟漪承载:新纳入涟漪的可点击头部需要 relative + hidden 圈住墨滴 */
+.mc-scope-header,
+.mc-timeline-header,
+.mcp-content-toggle {
+    position: relative;
+    overflow: hidden;
+}
+
+/* 药丸/标签新增时的弹入动效(与 mc-pill-shrink 移除动效对称) */
+.mc-pill-enter { animation: mc-pill-pop 0.18s ease; }
+@keyframes mc-pill-pop {
+    from { transform: scale(0.7); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* 手机端 sheet 拖拽指示条(内联预览/结晶预览顶部,点击收起;桌面端隐藏) */
+.mc-sheet-handle {
+    display: none;
+    justify-content: center;
+    padding: 6px 0 10px;
+    cursor: pointer;
+}
+.mc-sheet-handle span {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.18);
+    transition: background 0.2s ease;
+}
+.mc-sheet-handle:hover span,
+.mc-sheet-handle:active span { background: rgba(255, 255, 255, 0.34); }
+@media (max-width: 600px) {
+    .mc-sheet-handle { display: flex; }
+}
+
+/* 48px 触控热区:触屏设备上把小控件的可点区域撑起来(视觉尺寸尽量不动) */
+@media (pointer: coarse) {
+    .mc-icon-btn { width: 40px; height: 40px; font-size: 18px; }
+    .mc-fp-close { width: 40px; height: 40px; }
+    .mc-btn-sm { min-height: 40px; }
+    /* Toggle 视觉 36×20 不变,透明外扩把 hit area 撑到 ~44px */
+    .mc-toggle::after { content: ''; position: absolute; inset: -12px -10px; }
+    /* 胶囊 × 用 padding 外扩 + 负 margin 拉回,视觉不变热区变大 */
+    .mc-pill-x { padding: 10px 12px; margin: -10px -6px -10px -8px; }
+    .mcp-tag-x { padding: 10px 10px; margin: -10px -6px; }
+    .mc-pill-input { padding: 6px 12px; }
+}

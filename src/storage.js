@@ -1,0 +1,423 @@
+// 落墨自有存储模块
+// 基于 extension_settings.luomo.entries,按 scope 分桶
+
+import { extension_settings } from '../../../../extensions.js';
+import { saveSettingsDebounced } from '../../../../../script.js';
+
+const MODULE_NAME = 'luomo';
+const STORAGE_VERSION = 3;
+const DEFAULT_WEIGHTS = { must: 10, core: 5, any: 3, boost: 1 };
+// Phase 9.1:5→6,单 core(=5)不再过线,必须叠至少一个辅助词凑出层次
+const DEFAULT_THRESHOLD = 6;
+// v1→v2 迁移判断"用户是否改过 threshold"时用,冻结 v2 时代默认值(当时是 5),
+// 不随 DEFAULT_THRESHOLD 漂移;否则历史 v1 数据会把旧默认 5 误判成用户自定义而保留
+const LEGACY_V1_DEFAULT_THRESHOLD = 5;
+
+function getCtx() {
+    if (typeof SillyTavern !== 'undefined' && typeof SillyTavern.getContext === 'function') {
+        return SillyTavern.getContext();
+    }
+    return null;
+}
+
+/** 确保存储桶初始化,返回 entries 引用 */
+export function initStorage() {
+    extension_settings[MODULE_NAME] = extension_settings[MODULE_NAME] || {};
+    const settings = extension_settings[MODULE_NAME];
+    if (!settings.entries) settings.entries = {};
+
+    // 版本管理
+    // - storage_version 不存在:全新装机用户,直接标当前版本不跑迁移
+    // - storage_version < STORAGE_VERSION:跑迁移
+    if (settings.storage_version === undefined) {
+        settings.storage_version = STORAGE_VERSION;
+    } else if (settings.storage_version < STORAGE_VERSION) {
+        runMigrations(settings);
+    }
+
+    return settings.entries;
+}
+
+/** 迁移调度。失败时不更新 storage_version,下次初始化会重试 */
+function runMigrations(settings) {
+    const fromVersion = settings.storage_version;
+    try {
+        if (fromVersion < 2) {
+            migrateV1ToV2(settings);
+        }
+        if (fromVersion < 3) {
+            migrateV2ToV3(settings);
+        }
+        settings.storage_version = STORAGE_VERSION;
+        saveSettingsDebounced();
+        console.log(`[InkMemo] Storage migration: v${fromVersion} → v${STORAGE_VERSION} 完成`);
+    } catch (err) {
+        console.error(`[InkMemo] Storage migration v${fromVersion}→v${STORAGE_VERSION} 失败:`, err);
+    }
+}
+
+/** v1 → v2:trigger 加 core 字段,按新 deriveTrigger 重算所有非手编条目 */
+function migrateV1ToV2(settings) {
+    const entries = settings.entries || {};
+    let migrated = 0;
+    let failed = 0;
+    for (const scope of Object.keys(entries)) {
+        for (const entry of entries[scope]) {
+            try {
+                // _userEdited 保护:Phase 10 trigger 编辑器上线后用户手编过的不重算
+                // 当前不会触发(还没 UI),但接口先留着
+                if (entry.trigger?._userEdited === true) continue;
+                const oldTrigger = entry.trigger || {};
+                const newTrigger = deriveTrigger(entry.keywords);
+                // 保留原有 exclude(理论上当前都为空)
+                if (Array.isArray(oldTrigger.exclude) && oldTrigger.exclude.length > 0) {
+                    newTrigger.exclude = oldTrigger.exclude;
+                }
+                // 偏离 v2 时代默认值(5)的才视为用户自定义需保留;等于旧默认的跟到新默认(v2→v3 会再统一抬)
+                if (typeof oldTrigger.threshold === 'number' && oldTrigger.threshold !== LEGACY_V1_DEFAULT_THRESHOLD) {
+                    newTrigger.threshold = oldTrigger.threshold;
+                }
+                entry.trigger = newTrigger;
+                migrated++;
+            } catch (err) {
+                console.warn(`[InkMemo] migrateV1ToV2 跳过条目 ${entry.id}:`, err);
+                failed++;
+            }
+        }
+    }
+    console.log(`[InkMemo] Migration v1→v2: 重算 ${migrated} 条 trigger,失败 ${failed} 条`);
+}
+
+/** v2 → v3:Phase 9.1 默认 threshold 5→6。把非手编、且仍是旧默认 5 的条目抬到新默认 6。
+ *  _userEdited 的条目保留不动(用户可能就是想要 5);非 5 的非手编条目也不动(避免误伤)。 */
+function migrateV2ToV3(settings) {
+    const entries = settings.entries || {};
+    let bumped = 0;
+    for (const scope of Object.keys(entries)) {
+        for (const entry of entries[scope]) {
+            const t = entry.trigger;
+            if (!t || t._userEdited === true) continue;
+            if (t.threshold === LEGACY_V1_DEFAULT_THRESHOLD) {
+                t.threshold = DEFAULT_THRESHOLD;
+                bumped++;
+            }
+        }
+    }
+    console.log(`[InkMemo] Migration v2→v3: threshold ${LEGACY_V1_DEFAULT_THRESHOLD}→${DEFAULT_THRESHOLD} 抬升 ${bumped} 条`);
+}
+
+/** 当前 ST 上下文对应的默认 scope */
+export function getCurrentScope() {
+    const ctx = getCtx();
+    if (!ctx) return '_global';
+    if (ctx.groupId) return `group:${ctx.groupId}`;
+    if (ctx.characterId !== undefined && ctx.characters && ctx.characters[ctx.characterId]) {
+        const avatar = ctx.characters[ctx.characterId].avatar;
+        if (avatar) return `character:${avatar}`;
+    }
+    return '_global';
+}
+
+/** scope 的人类可读名 */
+export function getScopeLabel(scope) {
+    if (scope === '_global') return '全局';
+    const ctx = getCtx() || {};
+    if (scope.startsWith('group:')) {
+        const gid = scope.slice(6);
+        const group = (ctx.groups || []).find(g => String(g.id) === gid);
+        return group ? `群聊 · ${group.name}` : `群聊 · ${gid.slice(0, 8)}`;
+    }
+    if (scope.startsWith('character:')) {
+        const avatar = scope.slice(10);
+        const ch = (ctx.characters || []).find(c => c.avatar === avatar);
+        return ch ? `角色 · ${ch.name}` : `角色 · ${avatar}`;
+    }
+    return scope;
+}
+
+function genId(type) {
+    const prefix = type === 'knowledge' ? 'kn' : 'mem';
+    const ts = Date.now().toString(36);
+    const rand = Math.random().toString(36).slice(2, 7);
+    return `${prefix}_${ts}_${rand}`;
+}
+
+/** 从 keywords 三层推导默认 trigger 配置
+ *  规则:must=[], core=keywords.core, any=keywords.common, boost=keywords.assist
+ *  知识条目 buildEntry 已把 keywords 处理成 {core:[], common:raw.keywords, assist:[]},
+ *  因此自然走出 core:[] / any:keywords / boost:[],无需类型分流。
+ */
+function deriveTrigger(keywords) {
+    const core = Array.isArray(keywords?.core) ? keywords.core : [];
+    const common = Array.isArray(keywords?.common) ? keywords.common : [];
+    const assist = Array.isArray(keywords?.assist) ? keywords.assist : [];
+    return {
+        must: [],
+        core: [...core],
+        any: [...common],
+        boost: [...assist],
+        exclude: [],
+        weights: { ...DEFAULT_WEIGHTS },
+        threshold: DEFAULT_THRESHOLD,
+    };
+}
+
+/** 把结晶产出的一条(memory 或 knowledge)标准化成内部 entry */
+export function buildEntry({ type, raw, scope, sourceRange }) {
+    const now = new Date().toISOString();
+    const ctx = getCtx() || {};
+    const isMemory = type === 'memory';
+
+    const keywords = isMemory
+        ? {
+            core: Array.isArray(raw.keywords?.core) ? raw.keywords.core : [],
+            common: Array.isArray(raw.keywords?.common) ? raw.keywords.common : [],
+            assist: Array.isArray(raw.keywords?.assist) ? raw.keywords.assist : [],
+        }
+        : { core: [], common: Array.isArray(raw.keywords) ? raw.keywords : [], assist: [] };
+
+    return {
+        id: genId(type),
+        type,
+        title: raw.title || '(无标题)',
+        metadata: isMemory ? (raw.metadata || {}) : null,
+        content: raw.content || '',
+        keywords,
+        trigger: deriveTrigger(keywords),
+        enabled: true,
+        scope: scope || getCurrentScope(),
+        source: {
+            range: sourceRange || null,
+            chatId: ctx.chatId || null,
+            characterId: ctx.characterId !== undefined ? ctx.characterId : null,
+            groupId: ctx.groupId || null,
+        },
+        created: now,
+        updated: now,
+    };
+}
+
+/** 新增或覆盖保存(按 id 匹配) */
+export function saveEntry(entry) {
+    const entries = initStorage();
+    const scope = entry.scope;
+    if (!entries[scope]) entries[scope] = [];
+    const idx = entries[scope].findIndex(e => e.id === entry.id);
+    if (idx >= 0) {
+        entry.updated = new Date().toISOString();
+        entries[scope][idx] = entry;
+    } else {
+        entries[scope].push(entry);
+    }
+    saveSettingsDebounced();
+    return entry;
+}
+
+/** 部分字段更新 */
+export function updateEntry(id, patch) {
+    const entries = initStorage();
+    for (const scope of Object.keys(entries)) {
+        const idx = entries[scope].findIndex(e => e.id === id);
+        if (idx >= 0) {
+            entries[scope][idx] = { ...entries[scope][idx], ...patch, updated: new Date().toISOString() };
+            saveSettingsDebounced();
+            return entries[scope][idx];
+        }
+    }
+    return null;
+}
+
+export function deleteEntry(id) {
+    const entries = initStorage();
+    for (const scope of Object.keys(entries)) {
+        const before = entries[scope].length;
+        entries[scope] = entries[scope].filter(e => e.id !== id);
+        if (entries[scope].length !== before) {
+            saveSettingsDebounced();
+            return true;
+        }
+    }
+    return false;
+}
+
+export function toggleEntry(id, enabled) {
+    return updateEntry(id, { enabled: !!enabled });
+}
+
+export function findEntryById(id) {
+    const entries = initStorage();
+    for (const scope of Object.keys(entries)) {
+        const found = entries[scope].find(e => e.id === id);
+        if (found) return found;
+    }
+    return null;
+}
+
+/** 恢复某条 entry 的 trigger 到自动推导态(清 _userEdited 标记)
+ *  Phase 10.1 trigger 编辑器"恢复推导"按钮调用 */
+export function resetEntryTrigger(id) {
+    const entry = findEntryById(id);
+    if (!entry) return null;
+    const newTrigger = deriveTrigger(entry.keywords);
+    return updateEntry(id, { trigger: newTrigger });
+}
+
+/** 当前上下文可见的条目(当前 scope + _global),给触发引擎用 */
+export function listForCurrentContext() {
+    const entries = initStorage();
+    const scope = getCurrentScope();
+    const out = [];
+    if (entries[scope]) out.push(...entries[scope]);
+    if (scope !== '_global' && entries['_global']) out.push(...entries['_global']);
+    return out;
+}
+
+/** 全部条目按 scope 分组,管理面板用 */
+export function listAllByScope() {
+    const entries = initStorage();
+    const currentScope = getCurrentScope();
+    const order = [
+        currentScope,
+        '_global',
+        ...Object.keys(entries).filter(s => s !== currentScope && s !== '_global'),
+    ];
+    const seen = new Set();
+    const groups = [];
+    for (const scope of order) {
+        if (seen.has(scope) || !entries[scope]) continue;
+        seen.add(scope);
+        if (entries[scope].length === 0) continue;
+        groups.push({
+            scope,
+            label: getScopeLabel(scope),
+            entries: [...entries[scope]].sort((a, b) => (b.updated || '').localeCompare(a.updated || '')),
+        });
+    }
+    return groups;
+}
+
+// ===== 时间线(按来源聊天分桶)+ 本聊天记忆截止层 =====
+// 时间线 key = entry.source.chatId(无记录的归 '_none')。
+// 配置存 extension_settings.luomo.timelines: { [key]: { name?, enabled? } },
+// 截止层存 extension_settings.luomo.chat_cutoffs: { [chatId]: number }。
+// 两者都是懒初始化,不走 storage_version 迁移。
+
+const NO_CHAT_KEY = '_none';
+
+function getSettingsBucket() {
+    extension_settings[MODULE_NAME] = extension_settings[MODULE_NAME] || {};
+    return extension_settings[MODULE_NAME];
+}
+
+export function getCurrentChatId() {
+    const ctx = getCtx();
+    return ctx?.chatId || null;
+}
+
+export function getTimelineKey(entry) {
+    return entry?.source?.chatId || NO_CHAT_KEY;
+}
+
+export function getTimelines() {
+    const s = getSettingsBucket();
+    if (!s.timelines) s.timelines = {};
+    return s.timelines;
+}
+
+export function getTimelineConfig(key) {
+    return getTimelines()[key] || {};
+}
+
+export function setTimelineName(key, name) {
+    const timelines = getTimelines();
+    const next = { ...(timelines[key] || {}) };
+    const trimmed = String(name || '').trim();
+    if (trimmed) next.name = trimmed;
+    else delete next.name;
+    timelines[key] = next;
+    saveSettingsDebounced();
+}
+
+export function setTimelineEnabled(key, enabled) {
+    const timelines = getTimelines();
+    timelines[key] = { ...(timelines[key] || {}), enabled: !!enabled };
+    saveSettingsDebounced();
+}
+
+/** 时间线显示名:自定义备注 > 本聊天 > chatId 截断 */
+export function getTimelineLabel(key) {
+    const cfg = getTimelineConfig(key);
+    if (cfg.name) return cfg.name;
+    if (key === NO_CHAT_KEY) return '未记录来源聊天';
+    if (key === getCurrentChatId()) return '本聊天';
+    return key.length > 24 ? key.slice(0, 24) + '…' : key;
+}
+
+function getChatCutoffs() {
+    const s = getSettingsBucket();
+    if (!s.chat_cutoffs) s.chat_cutoffs = {};
+    return s.chat_cutoffs;
+}
+
+/** 当前聊天的记忆截止层,没设返回 null */
+export function getChatCutoff() {
+    const chatId = getCurrentChatId();
+    if (!chatId) return null;
+    const v = getChatCutoffs()[chatId];
+    return Number.isFinite(v) ? v : null;
+}
+
+/** 设置/清除当前聊天的截止层。value 传 null/'' 即清除。无聊天上下文返回 false */
+export function setChatCutoff(value) {
+    const chatId = getCurrentChatId();
+    if (!chatId) return false;
+    const cutoffs = getChatCutoffs();
+    const n = Number(value);
+    if (value === null || value === undefined || value === '' || !Number.isFinite(n)) {
+        delete cutoffs[chatId];
+    } else {
+        cutoffs[chatId] = n;
+    }
+    saveSettingsDebounced();
+    return true;
+}
+
+/** 当前聊天最近一次结晶覆盖到的楼层(所有条目 source.range.to 的最大值),没结晶过返回 null。
+ *  浮动结晶面板的状态行 + 默认起始楼层用 */
+export function getLastCrystallizedTo() {
+    const chatId = getCurrentChatId();
+    if (!chatId) return null;
+    const entries = initStorage();
+    let max = null;
+    for (const scope of Object.keys(entries)) {
+        for (const e of entries[scope]) {
+            if (e.source?.chatId !== chatId) continue;
+            const to = e.source?.range?.to;
+            if (Number.isFinite(to) && (max === null || to > max)) max = to;
+        }
+    }
+    return max;
+}
+
+/** 触发引擎一次评分所需的过滤上下文 */
+export function getTriggerFilterContext() {
+    return {
+        currentChatId: getCurrentChatId(),
+        cutoff: getChatCutoff(),
+        timelines: getTimelines(),
+    };
+}
+
+export function getStats() {
+    const entries = initStorage();
+    let total = 0, enabled = 0, memory = 0, knowledge = 0;
+    for (const scope of Object.keys(entries)) {
+        for (const e of entries[scope]) {
+            total++;
+            if (e.enabled) enabled++;
+            if (e.type === 'memory') memory++;
+            else if (e.type === 'knowledge') knowledge++;
+        }
+    }
+    return { total, enabled, memory, knowledge };
+}
