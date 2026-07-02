@@ -36,6 +36,8 @@ https://github.com/shukeitei/SillyTavern-InkMemo
 
 ## 快速上手
 
+> 📖 更详细的逐步教程（每个面板干嘛的、第一次结晶怎么走、关键词怎么手调）见 **[首次使用指引](docs/使用指引.md)**。下面是速通版：
+
 1. 扩展面板找到「✦ 落墨 InkMemo」→ **API 设置**：填一个 OpenAI 兼容接口（推荐 DeepSeek：endpoint `https://api.deepseek.com/v1/chat/completions`，model `deepseek-chat`），Max Tokens 建议 ≥ 8192
 2. **记忆结晶**区填楼层范围（如 `0 → 30`）→ 预览提取内容 → 选「沉浸式结晶」（推荐）或「简洁式结晶」（概括风格，保真度低）
 3. 在预览弹窗里检查/修改产出，**确认写入目标世界书**（首次会要求你手动确认书名，之后记住绑定）→ 确认写入
