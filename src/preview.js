@@ -193,15 +193,39 @@ function buildKnowledgeCard(kb, index) {
     const cat = kb.category || '';
     // Phase 2:update = AI 指向的旧条目标题(写入后软失效旧条目);_dupOf = 重合度检查标出的疑似重复条目
     const updateOf = String(kb.update || '').trim();
+    const updateOld = kb._updateOld;           // {title, content} 找到旧条目时才有
+    const updateMissing = !!kb._updateMissing;  // AI 说更新但落墨里没这条
     const dupOf = String(kb._dupOf || '').trim();
-    const flags = (updateOf || dupOf) ? `
+
+    // update 块:默认勾选"失效旧条目",附旧条目 content 供对比裁决(AI 可能误把两条并列判成更新)
+    let updateBlock = '';
+    if (updateOf && updateOld) {
+        updateBlock = `
+        <div class="mcp-kb-update">
+            <label class="mcp-update-toggle">
+                <input type="checkbox" class="mcp-update-check" checked>
+                <span class="mcp-update-label">↻ 写入后失效旧条目：<b>${esc(updateOf)}</b></span>
+            </label>
+            <div class="mcp-update-hint">AI 认为本条是对旧条目的更新。<b>取消勾选则两条都保留</b>。拿不准就点下面对比旧条目原文。</div>
+            <details class="mcp-update-old">
+                <summary>对比旧条目原文</summary>
+                <div class="mcp-update-old-content">${esc(updateOld.content || '(旧条目无正文)')}</div>
+            </details>
+        </div>`;
+    } else if (updateOf && updateMissing) {
+        updateBlock = `
+        <div class="mcp-kb-update mcp-kb-update-missing">
+            <span class="mcp-update-label">↻ AI 标为更新「${esc(updateOf)}」,但落墨条目里没有这条 → 将作为新条目写入</span>
+        </div>`;
+    }
+    const dupBlock = dupOf ? `
         <div class="mcp-kb-flags">
-            ${updateOf ? `<span class="mcp-flag mcp-flag-update" title="写入后会把旧条目软失效(关掉开关,不删除)">↻ 更新旧条目：${esc(updateOf)}</span>` : ''}
-            ${dupOf ? `<span class="mcp-flag mcp-flag-dup" title="与已收录知识关键词高度重合,请人工确认是否重复——不会自动丢弃">⚠ 疑似重复：${esc(dupOf)}</span>` : ''}
+            <span class="mcp-flag mcp-flag-dup" title="与已收录知识关键词高度重合,请人工确认是否重复——不会自动丢弃">⚠ 疑似重复：${esc(dupOf)}</span>
         </div>` : '';
     return `
     <div class="mcp-card" data-type="knowledge" data-index="${index}" data-category="${esc(cat)}" data-update="${esc(updateOf)}">
-        ${flags}
+        ${updateBlock}
+        ${dupBlock}
         <div class="mcp-kb-head">
             ${cat ? `<span class="mcp-cat-badge mcp-cat-${esc(cat)}">${esc(kbCatLabel(cat))}</span>` : ''}
             <input class="mc-input mcp-field-subject" value="${esc(kb.subject || '')}" placeholder="主体(谁)">
@@ -436,9 +460,13 @@ function collectEdits(root) {
     });
 
     root.querySelectorAll('.mcp-card[data-type="knowledge"]').forEach(card => {
+        // Phase 2:update 默认带回(写入时软失效旧条目);若用户取消了"失效旧条目"勾选 → 清空,两条都保留
+        let update = card.getAttribute('data-update') || '';
+        const updCheck = card.querySelector('.mcp-update-check');
+        if (updCheck && !updCheck.checked) update = '';
         result.knowledge.push({
             category: card.getAttribute('data-category') || '',
-            update: card.getAttribute('data-update') || '',   // Phase 2:带回旧条目指向,供写入时软失效
+            update,
             subject: card.querySelector('.mcp-field-subject')?.value.trim() || '',
             title: card.querySelector('.mcp-field-title')?.value.trim() || '',
             content: card.querySelector('.mcp-field-content')?.value || '',

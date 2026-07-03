@@ -218,11 +218,23 @@ async function startCrystallization(mode = 'immersive') {
         toastr.success(`结晶完成！回忆录 ${memCount} 条${kbCount > 0 ? `，知识库 ${kbCount} 条` : ''}，请预览确认`, 'InkMemo', { timeOut: 3000 });
         console.log(`${LOG_PREFIX} 结晶结果:`, parsed);
 
-        // Phase 2:预览前给每条知识标重合度(与当前上下文已有知识 ≥0.5 → 疑似重复),人裁决不自动扔。
-        // 若该条已带 update 且指向同一旧条目,"更新"徽章已表达此关系,不再叠"疑似重复"。
+        // Phase 2:预览前的两项标注——
+        //  (a) update:AI 判本条更新了旧条目 → 把旧条目 content 附上供预览对比裁决
+        //      (旧条目只在落墨自有存储里,预览层看不到内容;AI 可能误判两条并列为更新,故要人能对比后否决)。
+        //  (b) 疑似重复:与当前上下文已有知识关键词 ≥0.5 重合 → 标出人裁决,不自动扔。
+        //      带 update 且指向同一旧条目的,"更新"块已表达此关系,不再叠"疑似重复"。
         for (const k of parsed.knowledge) {
+            const upd = String(k.update || '').trim();
+            if (upd) {
+                const old = findKnowledgeByTitleInContext(upd);
+                if (old) {
+                    k._updateOld = { title: old.title, content: old.content || '' };
+                } else {
+                    k._updateMissing = true;  // AI 指向的旧条目落墨里没有 → 写入时会当普通新条目
+                }
+            }
             const dup = findDuplicateKnowledge(k);
-            if (dup && dup.title !== String(k.update || '').trim()) {
+            if (dup && dup.title !== upd) {
                 k._dupOf = dup.title;
                 console.log(`${LOG_PREFIX} 知识疑似重复:「${k.title}」与已有「${dup.title}」重合 ${(dup.ratio * 100).toFixed(0)}%`);
             }

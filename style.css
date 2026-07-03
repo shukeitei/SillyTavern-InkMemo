@@ -511,7 +511,7 @@
 .mcp-cat-date       { color: #E0C579; background: rgba(224, 197, 121, 0.14); border-color: rgba(224, 197, 121, 0.32); }
 .mcp-cat-boundary   { color: #E89BA0; background: rgba(232, 155, 160, 0.14); border-color: rgba(232, 155, 160, 0.32); }
 
-/* Phase 2:知识卡片顶部状态旗标(更新旧条目 / 疑似重复) */
+/* Phase 2:知识卡片顶部状态旗标(疑似重复) */
 .mcp-kb-flags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .mcp-flag {
     display: inline-flex; align-items: center;
@@ -519,10 +519,41 @@
     font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
     border: 0.5px solid transparent;
 }
-/* 更新:偏蓝紫(与 promise 同族,表"承接旧条目") */
-.mcp-flag-update { color: #A9B8F0; background: rgba(169, 184, 240, 0.14); border-color: rgba(169, 184, 240, 0.34); }
 /* 疑似重复:告警橘,提示人裁决(非错误红,不自动丢) */
 .mcp-flag-dup    { color: #F0B267; background: rgba(240, 178, 103, 0.16); border-color: rgba(240, 178, 103, 0.38); }
+
+/* Phase 2:update 更新块——默认勾选"失效旧条目",附旧条目原文供对比裁决 */
+.mcp-kb-update {
+    margin-bottom: 10px; padding: 9px 11px;
+    border-radius: 10px;
+    background: rgba(169, 184, 240, 0.10);
+    border: 0.5px solid rgba(169, 184, 240, 0.34);
+}
+.mcp-kb-update-missing {
+    background: rgba(240, 178, 103, 0.10);
+    border-color: rgba(240, 178, 103, 0.34);
+}
+.mcp-update-toggle { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.mcp-update-check { flex-shrink: 0; margin: 0; cursor: pointer; }
+.mcp-update-label { font-size: 12px; font-weight: 600; color: #A9B8F0; }
+.mcp-kb-update-missing .mcp-update-label { color: #F0B267; }
+.mcp-update-label b { color: var(--SmartThemeBodyColor, #e0e0e0); }
+.mcp-update-hint { margin: 6px 0 2px; font-size: 11px; line-height: 1.5; opacity: 0.72; }
+.mcp-update-hint b { opacity: 0.95; }
+.mcp-update-old { margin-top: 6px; }
+.mcp-update-old summary {
+    cursor: pointer; font-size: 11px; opacity: 0.7;
+    user-select: none; list-style: revert;
+}
+.mcp-update-old summary:hover { opacity: 1; }
+.mcp-update-old-content {
+    margin-top: 6px; padding: 7px 9px;
+    border-radius: 7px;
+    background: rgba(0, 0, 0, 0.14);
+    font-size: 12px; line-height: 1.55;
+    white-space: pre-wrap; word-break: break-word;
+    opacity: 0.9;
+}
 
 .mcp-keywords-group { margin-top: 12px; }
 .mcp-kw-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
