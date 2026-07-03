@@ -152,10 +152,13 @@ function genId(type) {
  *
  *  知识条目(knowledge):触发几何整个不同(Phase 0 修复"就算词提得完美也触发不了"的 bug)。
  *  - 阈值降到 KNOWLEDGE_THRESHOLD(5),让单个概念词命中即可过线。
- *  - concept 词 → core 档(任一命中 +5,软 OR);subject 主体名 → any 档(+3)。
- *  - Phase 0 过渡:新 schema({concept,scene})未上,存量知识条目只有扁平 keywords,
- *    无论落在 core 还是 common 容器,一律按 concept 对待并入 core 档。
- *    Phase 1 上 {concept→core, scene→common} 结构后,本函数改走精确映射(scene→any)。
+ *  - Phase 1 精确映射:concept 词(core 容器)→ core 档(任一命中 +5,软 OR);
+ *    scene 词(common 容器)→ any 档(+3);subject 主体名 → any 档(+3)。
+ *    语义:概念词单独命中即触发;场景词单独不过(3<5),需与主体名共现(3+3=6≥5)。
+ *  - 兼容存量/旧形状:知识关键词曾以扁平数组存过(有的落 core 容器、Phase 0 前落 common 容器)。
+ *    若只有一个容器有词(另一个空),把有词的那批一律当 concept 放 core 档——保证"单词命中即触发",
+ *    避免旧对象形状(词全在 common)被 reset 后掉进 any 档、单词 3<5 触发不了的回退。
+ *    只有两容器都非空时才是新 schema(concept+scene),走精确的 core/any 分档。
  */
 function deriveTrigger(keywords, type, subject) {
     const core = Array.isArray(keywords?.core) ? keywords.core : [];
@@ -163,14 +166,21 @@ function deriveTrigger(keywords, type, subject) {
     const assist = Array.isArray(keywords?.assist) ? keywords.assist : [];
 
     if (type === 'knowledge') {
-        const concept = [...core, ...common];  // 过渡:两容器的扁平词都当 concept
-        const any = [];
+        let coreTier;   // → core 档(+5,concept)
+        let anyTier;    // → any 档(+3,scene)
+        if (core.length && !common.length) {
+            coreTier = [...core]; anyTier = [];              // 新 schema 无 scene / Phase 0 存量(扁平在 core)
+        } else if (!core.length && common.length) {
+            coreTier = [...common]; anyTier = [];            // 旧对象形状(扁平在 common)→ 当 concept,防回退
+        } else {
+            coreTier = [...core]; anyTier = [...common];     // 新 schema:concept→core, scene→any
+        }
         const subj = String(subject || '').trim();
-        if (subj) any.push(subj);            // 主体名入 any 档(+3),与场景词共现凑线
+        if (subj) anyTier.push(subj);            // 主体名入 any 档(+3),与场景词共现凑线
         return {
             must: [],
-            core: concept,
-            any,
+            core: coreTier,
+            any: anyTier,
             boost: [...assist],
             exclude: [],
             weights: { ...DEFAULT_WEIGHTS },
@@ -201,22 +211,36 @@ export function buildEntry({ type, raw, scope, sourceRange }) {
     const ctx = getCtx() || {};
     const isMemory = type === 'memory';
 
-    // 知识条目:Phase 0 起把扁平 keywords 放 core 容器(而非旧的 common),
-    // 与 deriveTrigger 的 concept→core 映射对齐;deriveTrigger 过渡期两容器都当 concept,
-    // 所以存量 common 形状也不会漏触发。
+    // 知识条目:Phase 1 新 schema keywords 为 {concept, scene}——
+    //   concept → core 容器,scene → common 容器,assist 恒空;deriveTrigger 据此 core→+5 档 / scene→+3 档。
+    //   兼容旧扁平数组(raw.keywords 是 Array)→ 落 core 容器(与 Phase 0 存量对齐)。
     const keywords = isMemory
         ? {
             core: Array.isArray(raw.keywords?.core) ? raw.keywords.core : [],
             common: Array.isArray(raw.keywords?.common) ? raw.keywords.common : [],
             assist: Array.isArray(raw.keywords?.assist) ? raw.keywords.assist : [],
         }
-        : { core: Array.isArray(raw.keywords) ? raw.keywords : [], common: [], assist: [] };
+        : {
+            core: Array.isArray(raw.keywords?.concept) ? raw.keywords.concept
+                : (Array.isArray(raw.keywords) ? raw.keywords : []),
+            common: Array.isArray(raw.keywords?.scene) ? raw.keywords.scene : [],
+            assist: [],
+        };
+
+    // 知识条目 metadata 从 null 启用:存 subject/category(索引键)+ update(Phase 2 消费的旧条目指向)
+    const knowledgeMeta = isMemory ? null : (() => {
+        const m = {};
+        if (raw.subject) m.subject = raw.subject;
+        if (raw.category) m.category = raw.category;
+        if (raw.update) m.update = raw.update;
+        return m;
+    })();
 
     return {
         id: genId(type),
         type,
         title: raw.title || '(无标题)',
-        metadata: isMemory ? (raw.metadata || {}) : null,
+        metadata: isMemory ? (raw.metadata || {}) : knowledgeMeta,
         content: raw.content || '',
         keywords,
         trigger: deriveTrigger(keywords, type, isMemory ? undefined : raw.subject),

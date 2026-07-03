@@ -171,18 +171,49 @@ function buildMemoryCard(mem, index) {
     </div>`;
 }
 
+// Phase 1 知识 category 枚举 → 中文徽章文案
+const KB_CATEGORY_LABELS = {
+    preference: '喜好习惯',
+    pet: '宠物习性',
+    promise: '未完约定',
+    date: '重要日期',
+    boundary: '雷区',
+};
+
+function kbCatLabel(cat) {
+    return KB_CATEGORY_LABELS[cat] || cat || '';
+}
+
 function buildKnowledgeCard(kb, index) {
+    // Phase 1 新 schema:keywords 为 {concept, scene};兼容旧扁平数组
+    const kw = kb.keywords || {};
+    const concept = Array.isArray(kw.concept) ? kw.concept
+        : (Array.isArray(kb.keywords) ? kb.keywords : []);
+    const scene = Array.isArray(kw.scene) ? kw.scene : [];
+    const cat = kb.category || '';
     return `
-    <div class="mcp-card" data-type="knowledge" data-index="${index}">
+    <div class="mcp-card" data-type="knowledge" data-index="${index}" data-category="${esc(cat)}">
+        <div class="mcp-kb-head">
+            ${cat ? `<span class="mcp-cat-badge mcp-cat-${esc(cat)}">${esc(kbCatLabel(cat))}</span>` : ''}
+            <input class="mc-input mcp-field-subject" value="${esc(kb.subject || '')}" placeholder="主体(谁)">
+        </div>
+
         <input class="mc-input mcp-field-title" value="${esc(kb.title || '')}" placeholder="标题">
 
         <textarea class="mc-input mcp-field-content mcp-kb-content">${esc(kb.content || '')}</textarea>
 
         <div class="mcp-keywords-group">
             <div class="mcp-kw-row">
-                <span class="mcp-kw-label">关键词</span>
-                <div class="mcp-tags" data-kw-tier="flat">
-                    ${buildTags(kb.keywords)}
+                <span class="mcp-kw-label">概念词</span>
+                <div class="mcp-tags" data-kw-tier="concept">
+                    ${buildTags(concept)}
+                    <input class="mcp-tag-input" placeholder="回车添加">
+                </div>
+            </div>
+            <div class="mcp-kw-row">
+                <span class="mcp-kw-label">场景词</span>
+                <div class="mcp-tags" data-kw-tier="scene">
+                    ${buildTags(scene)}
                     <input class="mcp-tag-input" placeholder="回车添加">
                 </div>
             </div>
@@ -397,9 +428,14 @@ function collectEdits(root) {
 
     root.querySelectorAll('.mcp-card[data-type="knowledge"]').forEach(card => {
         result.knowledge.push({
+            category: card.getAttribute('data-category') || '',
+            subject: card.querySelector('.mcp-field-subject')?.value.trim() || '',
             title: card.querySelector('.mcp-field-title')?.value.trim() || '',
             content: card.querySelector('.mcp-field-content')?.value || '',
-            keywords: collectTags(card, 'flat'),
+            keywords: {
+                concept: collectTags(card, 'concept'),
+                scene: collectTags(card, 'scene'),
+            },
         });
     });
 

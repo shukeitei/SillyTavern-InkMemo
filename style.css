@@ -488,6 +488,29 @@
 .mcp-content-area { min-height: 80px; max-height: 300px; font-size: 13px; line-height: 1.7; resize: vertical; margin-top: 4px; }
 .mcp-kb-content { min-height: 60px; max-height: 200px; font-size: 13px; line-height: 1.7; resize: vertical; margin-top: 10px; }
 
+/* Phase 1 知识条目头:category 徽章 + 主体名输入 */
+.mcp-kb-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.mcp-kb-head .mcp-field-subject {
+    flex: 1; min-height: 32px; font-size: 13px; padding: 6px 10px;
+    background: transparent; border: 0.5px solid transparent; color: var(--mc-text-primary);
+}
+.mcp-kb-head .mcp-field-subject:focus {
+    background: rgba(255, 255, 255, 0.04); border-color: rgba(245, 138, 92, 0.55);
+}
+.mcp-cat-badge {
+    display: inline-flex; align-items: center; flex-shrink: 0;
+    padding: 3px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+    color: #F8A672; background: rgba(248, 166, 114, 0.14);
+    border: 0.5px solid rgba(248, 166, 114, 0.32);
+}
+/* 五类枚举各给一档淡色,便于一眼分类 */
+.mcp-cat-preference { color: #F8A672; background: rgba(248, 166, 114, 0.14); border-color: rgba(248, 166, 114, 0.32); }
+.mcp-cat-pet        { color: #8FD3B0; background: rgba(143, 211, 176, 0.14); border-color: rgba(143, 211, 176, 0.32); }
+.mcp-cat-promise    { color: #A9B8F0; background: rgba(169, 184, 240, 0.14); border-color: rgba(169, 184, 240, 0.32); }
+.mcp-cat-date       { color: #E0C579; background: rgba(224, 197, 121, 0.14); border-color: rgba(224, 197, 121, 0.32); }
+.mcp-cat-boundary   { color: #E89BA0; background: rgba(232, 155, 160, 0.14); border-color: rgba(232, 155, 160, 0.32); }
+
 .mcp-keywords-group { margin-top: 12px; }
 .mcp-kw-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
 .mcp-kw-row:last-child { margin-bottom: 0; }

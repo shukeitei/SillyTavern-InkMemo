@@ -120,6 +120,38 @@ export function parseResultJSON(raw) {
 }
 
 /**
+ * 解析知识提取独立调用的 JSON（Phase 1）
+ * 与 parseResultJSON 的区别：宽松分支——只要求 knowledge 是数组，不要求 memories。
+ * @param {string} raw - AI 返回的原始文本
+ * @returns {{ knowledge: Array }}
+ */
+export function parseKnowledgeJSON(raw) {
+    let cleaned = raw.trim();
+
+    const fenceMatch = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+    if (fenceMatch) {
+        cleaned = fenceMatch[1].trim();
+    }
+
+    let parsed;
+    try {
+        parsed = JSON.parse(cleaned);
+    } catch (err) {
+        throw new APIError(
+            `知识 JSON 解析失败: ${err.message}\n原始内容前300字:\n${raw.slice(0, 300)}`,
+            'JSON_PARSE_ERROR'
+        );
+    }
+
+    if (!parsed || !Array.isArray(parsed.knowledge)) {
+        throw new APIError('知识返回缺少 knowledge 数组', 'JSON_PARSE_ERROR');
+    }
+
+    console.log(`${LOG} 知识 JSON 解析成功: ${parsed.knowledge.length} 条`);
+    return { knowledge: parsed.knowledge };
+}
+
+/**
  * 规范化 endpoint：确保以 /chat/completions 结尾
  */
 function normalizeEndpoint(endpoint) {

@@ -110,10 +110,19 @@ export async function writeConfirmedEntries(parsed, bookNames = {}) {
             const data = await ensureBook(knowledgeBookName);
             for (const kn of parsed.knowledge) {
                 try {
+                    // Phase 1:知识 keywords 新形状为 {concept, scene};世界书 keys 摊平 concept+scene(+主体名)。
+                    // 兼容旧扁平数组。
+                    const kKeys = Array.isArray(kn.keywords)
+                        ? kn.keywords
+                        : [
+                            ...(kn.keywords?.concept || []),
+                            ...(kn.keywords?.scene || []),
+                            ...(kn.subject ? [kn.subject] : []),
+                        ];
                     writeEntry(knowledgeBookName, data, {
                         title: kn.title,
                         content: kn.content || '',
-                        keys: kn.keywords || [],
+                        keys: kKeys,
                         keysecondary: [],
                         selective: false,
                     });

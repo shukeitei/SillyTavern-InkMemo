@@ -5,8 +5,8 @@ import { extension_settings, getContext } from '../../../extensions.js';
 import { saveSettingsDebounced, eventSource, event_types } from '../../../../script.js';
 import { loadWorldInfo, world_names } from '../../../world-info.js';
 import { extractMessages, renderPreviewHTML } from './src/extractor.js';
-import { callChatAPI, parseResultJSON, APIError } from './src/api.js';
-import { buildMessages } from './src/prompt-template.js';
+import { callChatAPI, parseResultJSON, parseKnowledgeJSON, APIError } from './src/api.js';
+import { buildMessages, buildKnowledgeMessages } from './src/prompt-template.js';
 import { showCrystalPreview } from './src/preview.js';
 import { writeConfirmedEntries, DEFAULT_MEMORY_BOOK, DEFAULT_KNOWLEDGE_BOOK } from './src/worldbook.js';
 import {
@@ -173,17 +173,37 @@ async function startCrystallization(mode = 'immersive') {
     const temperature = parseFloat(s.api_temperature) || 0.7;
     const maxTokens = parseInt(s.api_max_tokens, 10) || 8192;
 
-    const messages = buildMessages(lastExtraction.formatted, mode);
-    console.log(`${LOG_PREFIX} 结晶模式: ${mode}`);
+    // Phase 1:回忆结晶与知识提取拆成两次独立请求,并行发出(总等待≈单次)。
+    // 输入同为 lastExtraction.formatted(原始楼层);知识调用不依赖回忆产出。
+    const memoirMessages = buildMessages(lastExtraction.formatted, mode);
+    const knowledgeMessages = buildKnowledgeMessages(lastExtraction.formatted, '(暂无)'); // Phase 2 换成真实已收录标题
+    console.log(`${LOG_PREFIX} 结晶模式: ${mode}(回忆+知识并行)`);
 
     setCrystallizeLoading(true, mode);
 
     try {
-        const rawResult = await callChatAPI(config, messages, { temperature, maxTokens });
-        const parsed = parseResultJSON(rawResult);
+        // 回忆:失败即整轮失败(走外层 catch)。知识:独立 try/catch,失败降级为 knowledge:[] + 警告,不连累回忆。
+        const memoirPromise = callChatAPI(config, memoirMessages, { temperature, maxTokens });
+        const knowledgePromise = callChatAPI(config, knowledgeMessages, { temperature, maxTokens })
+            .then(raw => ({ knowledge: parseKnowledgeJSON(raw).knowledge, raw }))
+            .catch(err => {
+                console.error(`${LOG_PREFIX} 知识提取失败(不影响回忆结晶):`, err);
+                if (typeof toastr !== 'undefined') {
+                    toastr.warning(`知识提取失败,本轮只出回忆录(${err.message || err})`, 'InkMemo');
+                }
+                return { knowledge: [], raw: '' };
+            });
+
+        const [memoirRaw, knowledgeOutcome] = await Promise.all([memoirPromise, knowledgePromise]);
+        const memoirParsed = parseResultJSON(memoirRaw);
+        const parsed = {
+            memories: memoirParsed.memories || [],
+            knowledge: knowledgeOutcome.knowledge || [],
+        };
 
         lastCrystallization = {
-            raw: rawResult,
+            raw: memoirRaw,
+            knowledgeRaw: knowledgeOutcome.raw,
             parsed,
             sourceRange: {
                 from: parseInt($('#mc-floor-from').val()),
