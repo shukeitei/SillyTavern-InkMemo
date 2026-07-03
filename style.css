@@ -511,6 +511,19 @@
 .mcp-cat-date       { color: #E0C579; background: rgba(224, 197, 121, 0.14); border-color: rgba(224, 197, 121, 0.32); }
 .mcp-cat-boundary   { color: #E89BA0; background: rgba(232, 155, 160, 0.14); border-color: rgba(232, 155, 160, 0.32); }
 
+/* Phase 2:知识卡片顶部状态旗标(更新旧条目 / 疑似重复) */
+.mcp-kb-flags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.mcp-flag {
+    display: inline-flex; align-items: center;
+    padding: 3px 9px; border-radius: 8px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+    border: 0.5px solid transparent;
+}
+/* 更新:偏蓝紫(与 promise 同族,表"承接旧条目") */
+.mcp-flag-update { color: #A9B8F0; background: rgba(169, 184, 240, 0.14); border-color: rgba(169, 184, 240, 0.34); }
+/* 疑似重复:告警橘,提示人裁决(非错误红,不自动丢) */
+.mcp-flag-dup    { color: #F0B267; background: rgba(240, 178, 103, 0.16); border-color: rgba(240, 178, 103, 0.38); }
+
 .mcp-keywords-group { margin-top: 12px; }
 .mcp-kw-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
 .mcp-kw-row:last-child { margin-bottom: 0; }

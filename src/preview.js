@@ -191,8 +191,17 @@ function buildKnowledgeCard(kb, index) {
         : (Array.isArray(kb.keywords) ? kb.keywords : []);
     const scene = Array.isArray(kw.scene) ? kw.scene : [];
     const cat = kb.category || '';
+    // Phase 2:update = AI 指向的旧条目标题(写入后软失效旧条目);_dupOf = 重合度检查标出的疑似重复条目
+    const updateOf = String(kb.update || '').trim();
+    const dupOf = String(kb._dupOf || '').trim();
+    const flags = (updateOf || dupOf) ? `
+        <div class="mcp-kb-flags">
+            ${updateOf ? `<span class="mcp-flag mcp-flag-update" title="写入后会把旧条目软失效(关掉开关,不删除)">↻ 更新旧条目：${esc(updateOf)}</span>` : ''}
+            ${dupOf ? `<span class="mcp-flag mcp-flag-dup" title="与已收录知识关键词高度重合,请人工确认是否重复——不会自动丢弃">⚠ 疑似重复：${esc(dupOf)}</span>` : ''}
+        </div>` : '';
     return `
-    <div class="mcp-card" data-type="knowledge" data-index="${index}" data-category="${esc(cat)}">
+    <div class="mcp-card" data-type="knowledge" data-index="${index}" data-category="${esc(cat)}" data-update="${esc(updateOf)}">
+        ${flags}
         <div class="mcp-kb-head">
             ${cat ? `<span class="mcp-cat-badge mcp-cat-${esc(cat)}">${esc(kbCatLabel(cat))}</span>` : ''}
             <input class="mc-input mcp-field-subject" value="${esc(kb.subject || '')}" placeholder="主体(谁)">
@@ -429,6 +438,7 @@ function collectEdits(root) {
     root.querySelectorAll('.mcp-card[data-type="knowledge"]').forEach(card => {
         result.knowledge.push({
             category: card.getAttribute('data-category') || '',
+            update: card.getAttribute('data-update') || '',   // Phase 2:带回旧条目指向,供写入时软失效
             subject: card.querySelector('.mcp-field-subject')?.value.trim() || '',
             title: card.querySelector('.mcp-field-title')?.value.trim() || '',
             content: card.querySelector('.mcp-field-content')?.value || '',

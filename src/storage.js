@@ -332,6 +332,63 @@ export function listForCurrentContext() {
     return out;
 }
 
+// ===== Phase 2:知识去重 / update 软失效 支撑 =====
+
+/** 当前上下文(scope + _global)已收录、且启用中的知识条目 */
+export function listKnowledgeForContext() {
+    return listForCurrentContext().filter(e => e.type === 'knowledge' && e.enabled !== false);
+}
+
+/** 知识提取 prompt 的 {{existing_titles}}:当前上下文已收录知识标题清单。
+ *  返回 markdown 列表串;无条目返回 ''(buildKnowledgeMessages 会填"(暂无)")。 */
+export function getKnowledgeTitlesForContext() {
+    const titles = listKnowledgeForContext().map(e => e.title).filter(Boolean);
+    if (!titles.length) return '';
+    return titles.map(t => `- ${t}`).join('\n');
+}
+
+/** 按标题在当前上下文找一条启用中的知识条目(update 软失效用)。trim 后精确匹配。 */
+export function findKnowledgeByTitleInContext(title) {
+    const t = String(title || '').trim();
+    if (!t) return null;
+    return listKnowledgeForContext().find(e => String(e.title || '').trim() === t) || null;
+}
+
+/** 把一条知识的 keywords 摊平成词集合。
+ *  兼容预览形状(keywords.concept/scene)与内部形状(keywords.core/common)及旧扁平数组。 */
+function flatKeywordSet(kw) {
+    const arr = [];
+    if (Array.isArray(kw)) arr.push(...kw);
+    if (Array.isArray(kw?.concept)) arr.push(...kw.concept);
+    if (Array.isArray(kw?.scene)) arr.push(...kw.scene);
+    if (Array.isArray(kw?.core)) arr.push(...kw.core);
+    if (Array.isArray(kw?.common)) arr.push(...kw.common);
+    return new Set(arr.map(w => String(w).trim()).filter(Boolean));
+}
+
+/** 新知识条目(预览形状)与当前上下文已有知识的重合度检查。
+ *  ratio = |新∩旧| / |新|(新条目关键词有多少已被已有条目覆盖),同 subject 才比(不同主体撞词无意义)。
+ *  返回重合度最高且 ≥threshold 的 { title, ratio },否则 null。只标记供人裁决,不自动丢弃。 */
+export function findDuplicateKnowledge(rawItem, threshold = 0.5) {
+    const newSet = flatKeywordSet(rawItem?.keywords);
+    if (!newSet.size) return null;
+    const newSubj = String(rawItem?.subject || '').trim();
+    let best = null;
+    for (const e of listKnowledgeForContext()) {
+        const subj = getEntrySubject(e);
+        if (newSubj && subj && newSubj !== subj) continue;   // 不同主体不比
+        const exSet = flatKeywordSet(e.keywords);
+        if (!exSet.size) continue;
+        let inter = 0;
+        for (const w of newSet) if (exSet.has(w)) inter++;
+        const ratio = inter / newSet.size;
+        if (ratio >= threshold && (!best || ratio > best.ratio)) {
+            best = { title: e.title, ratio };
+        }
+    }
+    return best;
+}
+
 /** 全部条目按 scope 分组,管理面板用 */
 export function listAllByScope() {
     const entries = initStorage();

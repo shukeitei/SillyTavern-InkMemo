@@ -10,8 +10,9 @@ import { buildMessages, buildKnowledgeMessages } from './src/prompt-template.js'
 import { showCrystalPreview } from './src/preview.js';
 import { writeConfirmedEntries, DEFAULT_MEMORY_BOOK, DEFAULT_KNOWLEDGE_BOOK } from './src/worldbook.js';
 import {
-    initStorage, buildEntry, saveEntry, updateEntry,
+    initStorage, buildEntry, saveEntry, updateEntry, toggleEntry,
     listAllByScope, getCurrentScope, getScopeLabel,
+    getKnowledgeTitlesForContext, findKnowledgeByTitleInContext, findDuplicateKnowledge,
 } from './src/storage.js';
 import { renderEntryList, bindEntryListEvents } from './src/list-renderer.js';
 import { runTriggers, evaluate, debugTriggers } from './src/trigger-engine.js';
@@ -176,7 +177,7 @@ async function startCrystallization(mode = 'immersive') {
     // Phase 1:回忆结晶与知识提取拆成两次独立请求,并行发出(总等待≈单次)。
     // 输入同为 lastExtraction.formatted(原始楼层);知识调用不依赖回忆产出。
     const memoirMessages = buildMessages(lastExtraction.formatted, mode);
-    const knowledgeMessages = buildKnowledgeMessages(lastExtraction.formatted, '(暂无)'); // Phase 2 换成真实已收录标题
+    const knowledgeMessages = buildKnowledgeMessages(lastExtraction.formatted, getKnowledgeTitlesForContext()); // Phase 2:灌当前上下文已收录知识标题(空则填"(暂无)")
     console.log(`${LOG_PREFIX} 结晶模式: ${mode}(回忆+知识并行)`);
 
     setCrystallizeLoading(true, mode);
@@ -217,6 +218,16 @@ async function startCrystallization(mode = 'immersive') {
         toastr.success(`结晶完成！回忆录 ${memCount} 条${kbCount > 0 ? `，知识库 ${kbCount} 条` : ''}，请预览确认`, 'InkMemo', { timeOut: 3000 });
         console.log(`${LOG_PREFIX} 结晶结果:`, parsed);
 
+        // Phase 2:预览前给每条知识标重合度(与当前上下文已有知识 ≥0.5 → 疑似重复),人裁决不自动扔。
+        // 若该条已带 update 且指向同一旧条目,"更新"徽章已表达此关系,不再叠"疑似重复"。
+        for (const k of parsed.knowledge) {
+            const dup = findDuplicateKnowledge(k);
+            if (dup && dup.title !== String(k.update || '').trim()) {
+                k._dupOf = dup.title;
+                console.log(`${LOG_PREFIX} 知识疑似重复:「${k.title}」与已有「${dup.title}」重合 ${(dup.ratio * 100).toFixed(0)}%`);
+            }
+        }
+
         showCrystalPreview(lastCrystallization.parsed, {
             target: resolveWriteTarget(),
             onConfirm: async (editedData, confirmedTarget) => {
@@ -232,6 +243,16 @@ async function startCrystallization(mode = 'immersive') {
                         saveEntry(buildEntry({ type: 'memory', raw: m, scope, sourceRange }));
                     }
                     for (const k of (editedData?.knowledge || [])) {
+                        // Phase 2:带 update 的条目 → 旧条目软失效(enabled=false,不删);找不到旧条目就当普通新条目
+                        if (k.update) {
+                            const old = findKnowledgeByTitleInContext(k.update);
+                            if (old) {
+                                toggleEntry(old.id, false);
+                                console.log(`${LOG_PREFIX} 知识更新:旧条目「${old.title}」已软失效(被「${k.title}」取代)`);
+                            } else {
+                                console.log(`${LOG_PREFIX} 知识 update 指向「${k.update}」未找到,按普通新条目处理`);
+                            }
+                        }
                         saveEntry(buildEntry({ type: 'knowledge', raw: k, scope, sourceRange }));
                     }
                     console.log(`${LOG_PREFIX} 已写入自有存储`);
