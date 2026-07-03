@@ -145,14 +145,16 @@ function renderEntryRow(entry) {
 function renderTriggerEditor(entry) {
     const t = entry.trigger || {};
     const userEdited = t._userEdited === true;
-    const threshold = typeof t.threshold === 'number' ? t.threshold : 5;
+    const isKnowledge = entry.type === 'knowledge';
+    const threshold = typeof t.threshold === 'number' ? t.threshold : (isKnowledge ? 5 : 6);
 
     const statusBadge = userEdited
         ? `<span class="mc-tag-status">✦ 已编辑(不再随 keywords 变动)</span>`
         : `<span class="mc-tag-status-auto">⟳ 自动推导自 keywords</span>`;
-    const resetBtn = userEdited
-        ? `<button class="mc-btn-ghost" data-mc-action="reset-trigger" type="button">恢复推导</button>`
-        : '';
+    // 「重置为默认触发配置」对所有条目可见:即便没手编,推导规则升级后(如知识条目改用阈值 5)
+    // 存量条目存的仍是旧 trigger,点此按新 deriveTrigger 重算。手编条目二次确认(会丢手改)。
+    const resetLabel = userEdited ? '恢复推导' : '重置为默认触发配置';
+    const resetBtn = `<button class="mc-btn-ghost" data-mc-action="reset-trigger" type="button">${resetLabel}</button>`;
 
     return `<div class="mc-trigger-editor-inner" data-id="${escapeAttr(entry.id)}">
   <div class="mc-trigger-editor-head">
@@ -167,7 +169,7 @@ function renderTriggerEditor(entry) {
   <div class="mc-trigger-threshold-row">
     <label class="mc-trigger-threshold-label">触发阈值</label>
     <input class="mc-input-threshold" type="number" min="1" max="99" step="1" value="${threshold}" />
-    <span class="mc-trigger-threshold-hint">梯度: 任一 core=5 / 一个 any=3 / 一个 boost=1</span>
+    <span class="mc-trigger-threshold-hint">梯度: 任一 core=5 / 一个 any=3 / 一个 boost=1${isKnowledge ? ' · 知识条目默认阈值 5(概念词单独命中即触发)' : ' · 回忆条目默认阈值 6'}</span>
   </div>
   <div class="mc-trigger-editor-actions">
     <button class="mc-btn mc-btn-sm mc-btn-secondary" data-mc-action="cancel-trigger" type="button">取消</button>
@@ -305,15 +307,18 @@ export function bindEntryListEvents() {
         renderEntryList();
     });
 
-    // 恢复推导(局部更新编辑器 inner,不闪烁)
+    // 重置为默认触发配置 / 恢复推导(局部更新编辑器 inner,不闪烁)
+    // 手编过的条目会丢手改,需二次确认;未手编的直接按最新 deriveTrigger 规则重算,无需确认。
     $container.on('click', '[data-mc-action="reset-trigger"]', function () {
         const $editorInner = $(this).closest('.mc-trigger-editor-inner');
         const id = String($editorInner.data('id'));
-        if (!confirm('恢复推导后,你对这条 trigger 的所有手编修改将丢失,改回从 keywords 自动生成。确定继续?')) return;
+        const entry = findEntryById(id);
+        const wasEdited = entry?.trigger?._userEdited === true;
+        if (wasEdited && !confirm('恢复推导后,你对这条 trigger 的所有手编修改将丢失,改回从 keywords 自动生成。确定继续?')) return;
         const updated = resetEntryTrigger(id);
         if (updated) {
             $editorInner.replaceWith(renderTriggerEditor(updated));
-            if (typeof toastr !== 'undefined') toastr.success('已恢复推导');
+            if (typeof toastr !== 'undefined') toastr.success(wasEdited ? '已恢复推导' : '已重置为默认触发配置');
         }
     });
 

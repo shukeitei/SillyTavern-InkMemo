@@ -9,6 +9,9 @@ const STORAGE_VERSION = 3;
 const DEFAULT_WEIGHTS = { must: 10, core: 5, any: 3, boost: 1 };
 // Phase 9.1:5→6,单 core(=5)不再过线,必须叠至少一个辅助词凑出层次
 const DEFAULT_THRESHOLD = 6;
+// Phase 0(知识库优化):知识条目专属阈值。概念词单独命中(core=5)即过线;
+// 场景词单独(any=3)不过,需与主体名(any=3)共现 3+3=6≥5。回忆条目仍用 DEFAULT_THRESHOLD。
+const KNOWLEDGE_THRESHOLD = 5;
 // v1→v2 迁移判断"用户是否改过 threshold"时用,冻结 v2 时代默认值(当时是 5),
 // 不随 DEFAULT_THRESHOLD 漂移;否则历史 v1 数据会把旧默认 5 误判成用户自定义而保留
 const LEGACY_V1_DEFAULT_THRESHOLD = 5;
@@ -68,7 +71,7 @@ function migrateV1ToV2(settings) {
                 // 当前不会触发(还没 UI),但接口先留着
                 if (entry.trigger?._userEdited === true) continue;
                 const oldTrigger = entry.trigger || {};
-                const newTrigger = deriveTrigger(entry.keywords);
+                const newTrigger = deriveTrigger(entry.keywords, entry.type, getEntrySubject(entry));
                 // 保留原有 exclude(理论上当前都为空)
                 if (Array.isArray(oldTrigger.exclude) && oldTrigger.exclude.length > 0) {
                     newTrigger.exclude = oldTrigger.exclude;
@@ -142,15 +145,39 @@ function genId(type) {
     return `${prefix}_${ts}_${rand}`;
 }
 
-/** 从 keywords 三层推导默认 trigger 配置
- *  规则:must=[], core=keywords.core, any=keywords.common, boost=keywords.assist
- *  知识条目 buildEntry 已把 keywords 处理成 {core:[], common:raw.keywords, assist:[]},
- *  因此自然走出 core:[] / any:keywords / boost:[],无需类型分流。
+/** 从 keywords 三层 + 条目类型推导默认 trigger 配置
+ *
+ *  回忆条目(memory / type 缺省):must=[], core=keywords.core, any=keywords.common,
+ *  boost=keywords.assist, threshold=DEFAULT_THRESHOLD(6)。维持现状。
+ *
+ *  知识条目(knowledge):触发几何整个不同(Phase 0 修复"就算词提得完美也触发不了"的 bug)。
+ *  - 阈值降到 KNOWLEDGE_THRESHOLD(5),让单个概念词命中即可过线。
+ *  - concept 词 → core 档(任一命中 +5,软 OR);subject 主体名 → any 档(+3)。
+ *  - Phase 0 过渡:新 schema({concept,scene})未上,存量知识条目只有扁平 keywords,
+ *    无论落在 core 还是 common 容器,一律按 concept 对待并入 core 档。
+ *    Phase 1 上 {concept→core, scene→common} 结构后,本函数改走精确映射(scene→any)。
  */
-function deriveTrigger(keywords) {
+function deriveTrigger(keywords, type, subject) {
     const core = Array.isArray(keywords?.core) ? keywords.core : [];
     const common = Array.isArray(keywords?.common) ? keywords.common : [];
     const assist = Array.isArray(keywords?.assist) ? keywords.assist : [];
+
+    if (type === 'knowledge') {
+        const concept = [...core, ...common];  // 过渡:两容器的扁平词都当 concept
+        const any = [];
+        const subj = String(subject || '').trim();
+        if (subj) any.push(subj);            // 主体名入 any 档(+3),与场景词共现凑线
+        return {
+            must: [],
+            core: concept,
+            any,
+            boost: [...assist],
+            exclude: [],
+            weights: { ...DEFAULT_WEIGHTS },
+            threshold: KNOWLEDGE_THRESHOLD,
+        };
+    }
+
     return {
         must: [],
         core: [...core],
@@ -162,19 +189,28 @@ function deriveTrigger(keywords) {
     };
 }
 
+/** 从 entry 取主体名(Phase 1 起存于 metadata.subject),Phase 0 存量条目无此字段返回 '' */
+function getEntrySubject(entry) {
+    const s = entry?.metadata?.subject;
+    return typeof s === 'string' ? s : '';
+}
+
 /** 把结晶产出的一条(memory 或 knowledge)标准化成内部 entry */
 export function buildEntry({ type, raw, scope, sourceRange }) {
     const now = new Date().toISOString();
     const ctx = getCtx() || {};
     const isMemory = type === 'memory';
 
+    // 知识条目:Phase 0 起把扁平 keywords 放 core 容器(而非旧的 common),
+    // 与 deriveTrigger 的 concept→core 映射对齐;deriveTrigger 过渡期两容器都当 concept,
+    // 所以存量 common 形状也不会漏触发。
     const keywords = isMemory
         ? {
             core: Array.isArray(raw.keywords?.core) ? raw.keywords.core : [],
             common: Array.isArray(raw.keywords?.common) ? raw.keywords.common : [],
             assist: Array.isArray(raw.keywords?.assist) ? raw.keywords.assist : [],
         }
-        : { core: [], common: Array.isArray(raw.keywords) ? raw.keywords : [], assist: [] };
+        : { core: Array.isArray(raw.keywords) ? raw.keywords : [], common: [], assist: [] };
 
     return {
         id: genId(type),
@@ -183,7 +219,7 @@ export function buildEntry({ type, raw, scope, sourceRange }) {
         metadata: isMemory ? (raw.metadata || {}) : null,
         content: raw.content || '',
         keywords,
-        trigger: deriveTrigger(keywords),
+        trigger: deriveTrigger(keywords, type, isMemory ? undefined : raw.subject),
         enabled: true,
         scope: scope || getCurrentScope(),
         source: {
@@ -258,7 +294,7 @@ export function findEntryById(id) {
 export function resetEntryTrigger(id) {
     const entry = findEntryById(id);
     if (!entry) return null;
-    const newTrigger = deriveTrigger(entry.keywords);
+    const newTrigger = deriveTrigger(entry.keywords, entry.type, getEntrySubject(entry));
     return updateEntry(id, { trigger: newTrigger });
 }
 
