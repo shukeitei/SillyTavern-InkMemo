@@ -26,7 +26,7 @@ const EXT_NAME = 'luomo';
 const LOG_PREFIX = '[InkMemo]';
 // 知识提取用比回忆录更低的固定温度:抽取判断类任务,低温更确定、多次产出更一致、更贴 kb 门槛;
 // 回忆录仍走用户配置的 temperature(创作需要发挥空间)。实验性稳定性调整,待观察是否回退。
-const KNOWLEDGE_TEMPERATURE = 0.8;
+const KNOWLEDGE_TEMPERATURE = 0.5;
 
 // 默认设置
 const DEFAULT_SETTINGS = {
