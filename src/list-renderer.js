@@ -142,6 +142,14 @@ function renderEntryRow(entry) {
 </div>`;
 }
 
+/** 局部折叠某条目的 trigger 编辑器:去展开态 + 清空编辑器 DOM。
+ *  不整表重渲染,保留列表滚动位置(保存/取消/切换展开时用) */
+function collapseEntryRow($row) {
+    if (!$row || $row.length === 0) return;
+    $row.removeClass('mc-entry-expanded');
+    $row.find('.mc-trigger-editor').empty();
+}
+
 function renderTriggerEditor(entry) {
     const t = entry.trigger || {};
     const userEdited = t._userEdited === true;
@@ -265,16 +273,26 @@ export function bindEntryListEvents() {
 
     // ===== Phase 10.1: trigger 编辑器 =====
 
-    // 展开/收起编辑器
+    // 展开/收起编辑器(局部 DOM 更新,不整表重画 → 保留滚动位置)
     $container.on('click', '.mc-entry-edit', function (e) {
         e.stopPropagation();
-        const id = String($(this).closest('.mc-entry-row').data('id'));
+        const $row = $(this).closest('.mc-entry-row');
+        const id = String($row.data('id'));
         if (expandedEntryId === id) {
+            // 再点已展开的 → 收起
+            collapseEntryRow($row);
             expandedEntryId = null;
-        } else {
-            expandedEntryId = id;
+            return;
         }
-        renderEntryList();
+        // 单条互斥:先收起之前展开的那条(若仍在当前 DOM)
+        if (expandedEntryId) {
+            collapseEntryRow($container.find(`.mc-entry-row[data-id="${expandedEntryId}"]`));
+        }
+        const entry = findEntryById(id);
+        if (!entry) return;
+        $row.addClass('mc-entry-expanded');
+        $row.find('.mc-trigger-editor').html(renderTriggerEditor(entry));
+        expandedEntryId = id;
     });
 
     // 移除药丸(× 按钮)
@@ -301,10 +319,10 @@ export function bindEntryListEvents() {
         if (val) addPillToDOM($(this), val, field);
     });
 
-    // 取消编辑(整列表重渲染丢弃 DOM 改动)
+    // 取消编辑(局部折叠丢弃 DOM 改动,保留滚动位置)
     $container.on('click', '[data-mc-action="cancel-trigger"]', function () {
+        collapseEntryRow($(this).closest('.mc-entry-row'));
         expandedEntryId = null;
-        renderEntryList();
     });
 
     // 重置为默认触发配置 / 恢复推导(局部更新编辑器 inner,不闪烁)
@@ -353,8 +371,9 @@ export function bindEntryListEvents() {
         };
 
         updateEntry(id, { trigger: newTrigger });
+        // 保存 = 就地折叠当前条目,不整表重画:滚动位置不动,能接着改同处其他条目
+        collapseEntryRow($editor.closest('.mc-entry-row'));
         expandedEntryId = null;
-        renderEntryList();
         if (typeof toastr !== 'undefined') toastr.success('已保存');
     });
 }
