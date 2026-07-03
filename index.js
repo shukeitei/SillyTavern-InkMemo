@@ -24,6 +24,9 @@ import { startTour, maybeStartTour } from './src/tour.js';
 
 const EXT_NAME = 'luomo';
 const LOG_PREFIX = '[InkMemo]';
+// 知识提取用比回忆录更低的固定温度:抽取判断类任务,低温更确定、多次产出更一致、更贴 kb 门槛;
+// 回忆录仍走用户配置的 temperature(创作需要发挥空间)。实验性稳定性调整,待观察是否回退。
+const KNOWLEDGE_TEMPERATURE = 0.5;
 
 // 默认设置
 const DEFAULT_SETTINGS = {
@@ -185,7 +188,7 @@ async function startCrystallization(mode = 'immersive') {
     try {
         // 回忆:失败即整轮失败(走外层 catch)。知识:独立 try/catch,失败降级为 knowledge:[] + 警告,不连累回忆。
         const memoirPromise = callChatAPI(config, memoirMessages, { temperature, maxTokens });
-        const knowledgePromise = callChatAPI(config, knowledgeMessages, { temperature, maxTokens })
+        const knowledgePromise = callChatAPI(config, knowledgeMessages, { temperature: KNOWLEDGE_TEMPERATURE, maxTokens })
             .then(raw => ({ knowledge: parseKnowledgeJSON(raw).knowledge, raw }))
             .catch(err => {
                 console.error(`${LOG_PREFIX} 知识提取失败(不影响回忆结晶):`, err);
