@@ -152,6 +152,65 @@ export function parseKnowledgeJSON(raw) {
 }
 
 /**
+ * 拉取可用模型列表（OpenAI 兼容的 GET /v1/models）
+ * 复用 endpoint（把 /chat/completions 换成 /models）+ Bearer key，与结晶请求同源，CORS 一致。
+ * @param {Object} config - { endpoint, apiKey }
+ * @returns {Promise<string[]>} 模型 id 数组（已排序去空）
+ */
+export async function fetchModels(config) {
+    const { endpoint, apiKey } = config;
+    if (!endpoint || !apiKey) {
+        throw new APIError('请先填写 API Endpoint 和 Key 再拉取模型', 'CONFIG_MISSING');
+    }
+
+    const url = normalizeEndpoint(endpoint).replace(/\/chat\/completions$/, '/models');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+
+    try {
+        console.log(`${LOG} 拉取模型 → ${url}`);
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+            signal: controller.signal,
+        });
+        clearTimeout(timer);
+
+        if (!response.ok) {
+            const errBody = await response.text().catch(() => '');
+            throw new APIError(
+                `拉取模型返回 ${response.status}: ${errBody.slice(0, 200)}`,
+                'HTTP_ERROR',
+                response.status
+            );
+        }
+
+        const data = await response.json();
+        // 兼容 { data: [{id}] } / 直接数组 / 元素为字符串
+        const list = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+        const ids = list
+            .map(m => (typeof m === 'string' ? m : m?.id))
+            .filter(Boolean);
+
+        if (!ids.length) {
+            throw new APIError('接口未返回模型列表（data 为空或格式不符）', 'PARSE_ERROR');
+        }
+
+        ids.sort((a, b) => a.localeCompare(b));
+        console.log(`${LOG} 拉取模型成功: ${ids.length} 个`);
+        return ids;
+
+    } catch (err) {
+        clearTimeout(timer);
+        if (err instanceof APIError) throw err;
+        if (err.name === 'AbortError') {
+            throw new APIError('拉取模型超时（30秒）', 'TIMEOUT');
+        }
+        throw new APIError(`网络错误: ${err.message}`, 'NETWORK_ERROR');
+    }
+}
+
+/**
  * 规范化 endpoint：确保以 /chat/completions 结尾
  */
 function normalizeEndpoint(endpoint) {

@@ -26,8 +26,14 @@
             </div>
             <div class="mc-field">
                 <label class="mc-label" for="mc-api-model">Model</label>
-                <input class="mc-input" type="text" id="mc-api-model"
-                       placeholder="deepseek-chat" />
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input class="mc-input" type="text" id="mc-api-model" list="mc-model-list"
+                           placeholder="deepseek-chat" style="flex: 1;" />
+                    <button type="button" class="mc-btn mc-btn-outline" id="mc-fetch-models"
+                            title="用当前 Endpoint + Key 拉取可用模型,选一个即可" style="white-space: nowrap;">⟳ 拉取</button>
+                </div>
+                <datalist id="mc-model-list"></datalist>
+                <div class="mc-field-hint">填好上方 Endpoint + Key 后点「拉取」，从接口取回可用模型名，点输入框即可下拉选择（也可手输）。</div>
             </div>
             <label class="mc-label" for="mc-api-temperature" style="margin-top: 12px;">Temperature</label>
             <div style="display: flex; align-items: center; gap: 12px;">

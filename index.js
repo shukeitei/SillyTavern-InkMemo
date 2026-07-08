@@ -5,7 +5,7 @@ import { extension_settings, getContext } from '../../../extensions.js';
 import { saveSettingsDebounced, eventSource, event_types } from '../../../../script.js';
 import { loadWorldInfo, world_names } from '../../../world-info.js';
 import { extractMessages, renderPreviewHTML } from './src/extractor.js';
-import { callChatAPI, parseResultJSON, parseKnowledgeJSON, APIError } from './src/api.js';
+import { callChatAPI, parseResultJSON, parseKnowledgeJSON, fetchModels, APIError } from './src/api.js';
 import { buildMessages, buildKnowledgeMessages } from './src/prompt-template.js';
 import { showCrystalPreview } from './src/preview.js';
 import { writeConfirmedEntries, DEFAULT_MEMORY_BOOK, DEFAULT_KNOWLEDGE_BOOK } from './src/worldbook.js';
@@ -121,6 +121,24 @@ function bindSettingsEvents() {
     $('#mc-clean-tags').on('change', function () {
         extension_settings[EXT_NAME].clean_tags = $(this).val();
         saveSettingsDebounced();
+    });
+    $('#mc-fetch-models').on('click', async function () {
+        const $btn = $(this);
+        const s = extension_settings[EXT_NAME];
+        const original = $btn.text();
+        $btn.prop('disabled', true).text('拉取中…');
+        try {
+            const ids = await fetchModels({ endpoint: s.api_endpoint, apiKey: s.api_key });
+            const $list = $('#mc-model-list').empty();
+            for (const id of ids) {
+                $list.append($('<option>').attr('value', id));
+            }
+            toastr.success(`拉取到 ${ids.length} 个模型，点 Model 输入框下拉选择`, '落墨');
+        } catch (err) {
+            toastr.warning(err.message, '落墨');
+        } finally {
+            $btn.prop('disabled', false).text(original);
+        }
     });
 }
 
