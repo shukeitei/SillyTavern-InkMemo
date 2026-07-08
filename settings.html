@@ -62,6 +62,17 @@
                 <textarea class="mc-input" id="mc-clean-tags" rows="4"></textarea>
                 <div class="mc-field-hint">提取楼层时整块剥除这些标签及其内容（如 thinking、StatusBlock、details）。成对 <code>&lt;x&gt;…&lt;/x&gt;</code> 剥整块；未闭合的起始标签（思维链被截断等）连同其后到本楼层结尾一起剥。生图块、状态栏在这里填自家格式的标签名。改完点「预览提取内容」即可肉眼验证剥干净了没。</div>
             </div>
+            <div class="mc-field">
+                <label class="mc-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="mc-filter-protagonist" />
+                    <span>触发词主角名过滤</span>
+                </label>
+            </div>
+            <div class="mc-field">
+                <label class="mc-label" for="mc-protagonist-names">主角名单（一行一个，选填）</label>
+                <textarea class="mc-input" id="mc-protagonist-names" rows="3"></textarea>
+                <div class="mc-field-hint">结晶产出的触发关键词里，包含这些名字的词会被自动剔除（主角名每段记忆都有，区分度为零，收了会让条目互相挤兑）。单聊会自动识别你和角色卡的名字，不用填；群聊请把男女主名字填进来。配角名不受影响。</div>
+            </div>
         </div>
     </div>
 

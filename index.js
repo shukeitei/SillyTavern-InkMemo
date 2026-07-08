@@ -38,6 +38,8 @@ const DEFAULT_SETTINGS = {
     wb_memory_book: '',
     wb_knowledge_book: '',
     clean_tags: 'thinking',
+    filter_protagonist: true,      // 触发词主角名过滤总开关，默认开
+    protagonist_names: '',         // 手填主角名单，一行一个，选填（群聊补男女主名）
 };
 
 // 暂存提取结果，供后续 Phase 3 使用
@@ -87,6 +89,8 @@ function populateUI() {
     $('#mc-wb-memory-book').val(s.wb_memory_book || '');
     $('#mc-wb-knowledge-book').val(s.wb_knowledge_book || '');
     $('#mc-clean-tags').val(s.clean_tags);
+    $('#mc-filter-protagonist').prop('checked', s.filter_protagonist !== false);
+    $('#mc-protagonist-names').val(s.protagonist_names || '');
 }
 
 function bindSettingsEvents() {
@@ -120,6 +124,14 @@ function bindSettingsEvents() {
     });
     $('#mc-clean-tags').on('change', function () {
         extension_settings[EXT_NAME].clean_tags = $(this).val();
+        saveSettingsDebounced();
+    });
+    $('#mc-filter-protagonist').on('change', function () {
+        extension_settings[EXT_NAME].filter_protagonist = $(this).prop('checked');
+        saveSettingsDebounced();
+    });
+    $('#mc-protagonist-names').on('change', function () {
+        extension_settings[EXT_NAME].protagonist_names = $(this).val();
         saveSettingsDebounced();
     });
     $('#mc-fetch-models').on('click', async function () {
@@ -186,6 +198,64 @@ function bindRipple() {
 
 // ==================== 结晶主流程 ====================
 
+/**
+ * 收集主角名单：自动(persona name1 + 角色卡 name2)并集手填名单。
+ * 只留长度 ≥2 的名字——单字名做包含匹配误杀率太高，直接不启用。
+ */
+function getProtagonistNames() {
+    const s = extension_settings[EXT_NAME];
+    const ctx = getContext();
+    const manual = String(s.protagonist_names || '').split('\n').map(t => t.trim());
+    const auto = [ctx?.name1, ctx?.name2];
+    return [...new Set([...auto, ...manual])].filter(n => n && n.length >= 2);
+}
+
+/** 从关键词数组里剔除包含任一主角名的词（包含即删）。返回 [过滤后数组, 被剔词数组]。 */
+function stripNames(arr, names) {
+    if (!Array.isArray(arr)) return [arr, []];
+    const removed = [];
+    const kept = arr.filter(kw => {
+        const hit = names.some(n => String(kw).includes(n));
+        if (hit) removed.push(kw);
+        return !hit;
+    });
+    return [kept, removed];
+}
+
+/**
+ * 结晶产出的触发关键词做主角名后置过滤（prompt 管九成，代码兜一成）。
+ * 回忆录洗 core/common/assist；知识库洗 concept/scene（兼容旧扁平数组），绝不碰 subject。
+ * 原地改 parsed，并 console 汇总剔了哪些词。
+ */
+function filterProtagonistNames(parsed) {
+    const names = getProtagonistNames();
+    if (!names.length) return;
+    const removedAll = [];
+    for (const m of (parsed.memories || [])) {
+        const kw = m.keywords;
+        if (!kw || Array.isArray(kw)) continue; // 回忆录 keywords 恒为 {core,common,assist} 对象
+        for (const layer of ['core', 'common', 'assist']) {
+            const [kept, removed] = stripNames(kw[layer], names);
+            if (removed.length) { kw[layer] = kept; removedAll.push(...removed); }
+        }
+    }
+    for (const k of (parsed.knowledge || [])) {
+        const kw = k.keywords;
+        if (Array.isArray(kw)) { // 旧扁平数组形状：整个数组过滤
+            const [kept, removed] = stripNames(kw, names);
+            if (removed.length) { k.keywords = kept; removedAll.push(...removed); }
+        } else if (kw) {
+            for (const layer of ['concept', 'scene']) { // 不动 subject
+                const [kept, removed] = stripNames(kw[layer], names);
+                if (removed.length) { kw[layer] = kept; removedAll.push(...removed); }
+            }
+        }
+    }
+    if (removedAll.length) {
+        console.log(`${LOG_PREFIX} 主角名过滤: 剔除 ${removedAll.length} 个关键词 [${removedAll.join(', ')}] (名单: ${names.join(', ')})`);
+    }
+}
+
 async function startCrystallization(mode = 'immersive') {
     if (!lastExtraction || !lastExtraction.formatted) {
         toastr.warning('请先预览提取内容', '落墨');
@@ -244,6 +314,11 @@ async function startCrystallization(mode = 'immersive') {
         const kbCount = lastCrystallization.parsed.knowledge?.length || 0;
         toastr.success(`结晶完成！回忆录 ${memCount} 条${kbCount > 0 ? `，知识库 ${kbCount} 条` : ''}，请预览确认`, 'InkMemo', { timeOut: 3000 });
         console.log(`${LOG_PREFIX} 结晶结果:`, parsed);
+
+        // 主角名后置过滤（预览前，用户看到的即最终关键词）；关掉总开关则跳过，行为回到现状。
+        if (s.filter_protagonist !== false) {
+            filterProtagonistNames(parsed);
+        }
 
         // Phase 2:预览前的两项标注——
         //  (a) update:AI 判本条更新了旧条目 → 把旧条目 content 附上供预览对比裁决
