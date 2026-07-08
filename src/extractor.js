@@ -72,7 +72,7 @@ export function renderPreviewHTML(messages) {
 }
 
 /**
- * 清洗消息内容：按用户配置整块剥除成对/自闭合标签及其内容
+ * 清洗消息内容：按用户配置整块剥除成对/自闭合/未闭合标签及其内容
  * @param {string} text 原始正文
  * @param {string} [cleanTags] 屏蔽标签配置（一行一个标签名），空则回退默认剥 thinking
  */
@@ -84,8 +84,12 @@ function cleanContent(text, cleanTags) {
     if (!tags.includes('thinking')) tags.push('thinking'); // 内置兜底，用户清空也剥 COT
     for (const tag of tags) {
         if (!/^[\w-]+$/.test(tag)) continue; // 非法标签名跳过，防正则注入
-        const re = new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tag}>|<${tag}(?:\\s[^>]*)?\\/>`, 'gi');
-        cleaned = cleaned.replace(re, '');
+        // ① 成对 <x>…</x> 与自闭合 <x/>：整块剥
+        const rePair = new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tag}>|<${tag}(?:\\s[^>]*)?\\/>`, 'gi');
+        cleaned = cleaned.replace(rePair, '');
+        // ② 残留的未闭合起始标签（思维链被截断等）：从标签剥到本楼层结尾
+        const reOpen = new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*$`, 'i');
+        cleaned = cleaned.replace(reOpen, '');
     }
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
     return cleaned;
