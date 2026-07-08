@@ -9,9 +9,10 @@ const LOG_PREFIX = '[InkMemo]';
  * 按楼层范围提取消息
  * @param {number} from 起始楼层（含）
  * @param {number} to   结束楼层（含）
+ * @param {string} [cleanTags] 用户配置的屏蔽标签（字符串，一行一个标签名），可空
  * @returns {{ messages: Array, formatted: string, count: number }}
  */
-export function extractMessages(from, to) {
+export function extractMessages(from, to, cleanTags) {
     const context = getContext();
     const chat = context.chat;
 
@@ -36,7 +37,7 @@ export function extractMessages(from, to) {
         floor: from + i,
         name: msg.name || '未知',
         isUser: !!msg.is_user,
-        content: cleanContent(msg.mes || ''),
+        content: cleanContent(msg.mes || '', cleanTags),
     }));
 
     // 拼接为纯文本，供后续发给结晶 API
@@ -71,13 +72,21 @@ export function renderPreviewHTML(messages) {
 }
 
 /**
- * 清洗消息内容：去除 <thinking> COT 区块等
+ * 清洗消息内容：按用户配置整块剥除成对/自闭合标签及其内容
+ * @param {string} text 原始正文
+ * @param {string} [cleanTags] 屏蔽标签配置（一行一个标签名），空则回退默认剥 thinking
  */
-function cleanContent(text) {
+function cleanContent(text, cleanTags) {
     if (!text) return '';
-    // 去除 <thinking>...</thinking> 及其内容（含换行）
-    let cleaned = text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
-    // 清理残余空行（连续多个换行合并为两个）
+    let cleaned = text;
+    const tags = String(cleanTags ?? 'thinking')
+        .split('\n').map(t => t.trim()).filter(Boolean);
+    if (!tags.includes('thinking')) tags.push('thinking'); // 内置兜底，用户清空也剥 COT
+    for (const tag of tags) {
+        if (!/^[\w-]+$/.test(tag)) continue; // 非法标签名跳过，防正则注入
+        const re = new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tag}>|<${tag}(?:\\s[^>]*)?\\/>`, 'gi');
+        cleaned = cleaned.replace(re, '');
+    }
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
     return cleaned;
 }

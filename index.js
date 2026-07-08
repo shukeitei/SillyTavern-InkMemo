@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS = {
     api_max_tokens: 8192,
     wb_memory_book: '',
     wb_knowledge_book: '',
+    clean_tags: 'thinking',
 };
 
 // 暂存提取结果，供后续 Phase 3 使用
@@ -85,6 +86,7 @@ function populateUI() {
     $('#mc-api-max-tokens').val(s.api_max_tokens);
     $('#mc-wb-memory-book').val(s.wb_memory_book || '');
     $('#mc-wb-knowledge-book').val(s.wb_knowledge_book || '');
+    $('#mc-clean-tags').val(s.clean_tags);
 }
 
 function bindSettingsEvents() {
@@ -114,6 +116,10 @@ function bindSettingsEvents() {
     });
     $('#mc-wb-knowledge-book').on('change', function () {
         extension_settings[EXT_NAME].wb_knowledge_book = $(this).val().trim();
+        saveSettingsDebounced();
+    });
+    $('#mc-clean-tags').on('change', function () {
+        extension_settings[EXT_NAME].clean_tags = $(this).val();
         saveSettingsDebounced();
     });
 }
@@ -491,7 +497,7 @@ function showPreview() {
     const to = parseInt($('#mc-floor-to').val());
 
     try {
-        const result = extractMessages(from, to);
+        const result = extractMessages(from, to, extension_settings[EXT_NAME].clean_tags);
         lastExtraction = result;
 
         if (isMobile()) {
@@ -649,7 +655,7 @@ jQuery(async () => {
             $('#mc-floor-from').val(from);
             $('#mc-floor-to').val(to);
             try {
-                lastExtraction = extractMessages(from, to);
+                lastExtraction = extractMessages(from, to, extension_settings[EXT_NAME].clean_tags);
             } catch (err) {
                 toastr.warning(err.message, '落墨');
                 return;
