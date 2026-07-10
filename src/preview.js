@@ -396,20 +396,24 @@ function bindEvents(root, originalParsed, callbacks, mode) {
         refreshCounts(root);
     });
 
-    // 标签添加（回车）
+    // 标签添加（回车 / 失焦兜底:手机输入法「前往」键可能不发标准 Enter）
+    const addTagFromInput = (input) => {
+        const val = input.value.trim();
+        if (!val) return;
+        const tag = document.createElement('span');
+        tag.className = 'mcp-tag mc-pill-enter';
+        tag.innerHTML = `${esc(val)}<span class="mcp-tag-x">×</span>`;
+        input.parentElement.insertBefore(tag, input);
+        input.value = '';
+    };
     root.querySelectorAll('.mcp-tag-input').forEach(input => {
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' || e.keyCode === 13) {
                 e.preventDefault();
-                const val = input.value.trim();
-                if (!val) return;
-                const tag = document.createElement('span');
-                tag.className = 'mcp-tag mc-pill-enter';
-                tag.innerHTML = `${esc(val)}<span class="mcp-tag-x">×</span>`;
-                input.parentElement.insertBefore(tag, input);
-                input.value = '';
+                addTagFromInput(input);
             }
         });
+        input.addEventListener('blur', () => addTagFromInput(input));
     });
 
     // 取消按钮
