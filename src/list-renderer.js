@@ -147,7 +147,7 @@ function renderEntryRow(entry) {
 function collapseEntryRow($row) {
     if (!$row || $row.length === 0) return;
     $row.removeClass('mc-entry-expanded');
-    $row.find('.mc-trigger-editor').empty();
+    $row.find('.mc-trigger-editor').removeClass('mc-open').empty();
 }
 
 function renderTriggerEditor(entry) {
@@ -291,7 +291,9 @@ export function bindEntryListEvents() {
         const entry = findEntryById(id);
         if (!entry) return;
         $row.addClass('mc-entry-expanded');
-        $row.find('.mc-trigger-editor').html(renderTriggerEditor(entry));
+        const $editor = $row.find('.mc-trigger-editor').html(renderTriggerEditor(entry));
+        // 先渲染内容再下一帧加 mc-open,让 max-height 过渡生效(与整表重画路径一致)
+        requestAnimationFrame(() => $editor.addClass('mc-open'));
         expandedEntryId = id;
     });
 
