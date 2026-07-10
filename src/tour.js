@@ -154,10 +154,13 @@ export function startTour() {
  * 首次使用自动开始引导。
  * 扩展抽屉可能还没打开(面板不可见时开讲用户根本看不到),
  * 所以用 IntersectionObserver 等面板第一次真正出现在屏幕上再开始。
+ * 观察对象必须是抽屉内容区:落墨自己的 inline-drawer 收起时标题行仍可见,
+ * 观察外壳会在内容还藏着时就误开讲。
  */
 export function maybeStartTour() {
     if (getSettings().tour_done) return;
-    const panel = document.getElementById('mc-panel');
+    const panel = document.querySelector('#mc-panel .inline-drawer-content')
+        || document.getElementById('mc-panel');
     if (!panel) return;
 
     if (typeof IntersectionObserver === 'undefined') {

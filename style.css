@@ -64,12 +64,15 @@
     color: var(--mc-text-primary);
     font-size: 14px;
     line-height: 1.5;
-    padding: 0 16px 16px 16px;
 }
+/* 内边距挂在抽屉内容区上：收起时不占空白 */
+.mc-panel .inline-drawer-content { padding: 0 16px 16px 16px; }
+
+/* === 抽屉标题（常驻行） === */
+.mc-drawer-title { color: #F8A672; font-weight: 600; letter-spacing: 0.02em; }
 
 /* === 标题区 === */
-.mc-header { padding: 16px 0 12px 0; text-align: left; }
-.mc-title { font-size: 20px; font-weight: 600; color: #F8A672; letter-spacing: 0.02em; }
+.mc-header { padding: 12px 0; text-align: left; }
 .mc-subtitle { font-size: 13px; color: var(--mc-text-mid); margin-top: 4px; }
 .mc-guide-link { display: inline-block; font-size: 12px; color: var(--mc-text-secondary, #A8A0B8); margin-top: 6px; margin-right: 12px; text-decoration: none; opacity: 0.85; }
 .mc-guide-link:hover { color: var(--mc-text-mid); opacity: 1; text-decoration: underline; }
@@ -281,8 +284,8 @@
 
 /* === 响应式 === */
 @media (max-width: 600px) {
-    .mc-panel { padding: 0 12px 12px 12px; }
-    .mc-header { padding: 12px 0 8px 0; }
+    .mc-panel .inline-drawer-content { padding: 0 12px 12px 12px; }
+    .mc-header { padding: 8px 0; }
 }
 
 /* ============ Phase 2: 提取预览 ============ */
