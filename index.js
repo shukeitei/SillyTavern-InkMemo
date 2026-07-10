@@ -210,6 +210,14 @@ function getProtagonistNames() {
     return [...new Set([...auto, ...manual])].filter(n => n && n.length >= 2);
 }
 
+/**
+ * 提示词示范例文里的人物名(prompt-template.js 大示例)。弱模型会无视"示例严禁出现在产出里"
+ * 把示例人物当正文抄进来(实测有用户结晶出"苏眠眠"条目)。关键词档含名即删(与主角名同待遇);
+ * 标题/正文/主体沾名 → 整条标 _exampleLeak,预览亮旗交人裁决,不自动扔。
+ * 只收足够特异的全名;示例里的"煤球/汤圆"等常用词不进名单,避免误杀真实剧情。
+ */
+const EXAMPLE_NAMES = ['苏眠眠', '陆屿', '温若彤', '郑晓东', '郑念念', '赵一鸣'];
+
 /** 从关键词数组里剔除包含任一主角名的词（包含即删）。返回 [过滤后数组, 被剔词数组]。 */
 function stripNames(arr, names) {
     if (!Array.isArray(arr)) return [arr, []];
@@ -228,7 +236,8 @@ function stripNames(arr, names) {
  * 原地改 parsed，并 console 汇总剔了哪些词。
  */
 function filterProtagonistNames(parsed) {
-    const names = getProtagonistNames();
+    // 关键词过滤名单 = 真实主角名 + 提示词示例人物名(后者是模型抄示例漏出来的,永远不该成为触发词)
+    const names = [...getProtagonistNames(), ...EXAMPLE_NAMES];
     if (!names.length) return;
     const removedAll = [];
     for (const m of (parsed.memories || [])) {
@@ -253,6 +262,20 @@ function filterProtagonistNames(parsed) {
     }
     if (removedAll.length) {
         console.log(`${LOG_PREFIX} 主角名过滤: 剔除 ${removedAll.length} 个关键词 [${removedAll.join(', ')}] (名单: ${names.join(', ')})`);
+    }
+
+    // 正文层示例泄漏检测:标题/正文/场景/主体出现示例人物名 → 整条打标,预览亮旗(不自动删,交人裁决)
+    const leakOf = (...fields) => {
+        const text = fields.map(f => String(f || '')).join('\n');
+        return EXAMPLE_NAMES.find(n => text.includes(n)) || '';
+    };
+    for (const m of (parsed.memories || [])) {
+        const hit = leakOf(m.title, m.content, m.metadata?.scene);
+        if (hit) { m._exampleLeak = hit; console.warn(`${LOG_PREFIX} 疑似抄提示词示例:回忆「${m.title}」含「${hit}」`); }
+    }
+    for (const k of (parsed.knowledge || [])) {
+        const hit = leakOf(k.title, k.content, k.subject);
+        if (hit) { k._exampleLeak = hit; console.warn(`${LOG_PREFIX} 疑似抄提示词示例:知识「${k.title}」含「${hit}」`); }
     }
 }
 

@@ -120,6 +120,7 @@ function buildMemoryCard(mem, index) {
     return `
     <div class="mcp-card" data-type="memory" data-index="${index}">
         ${DEL_BTN_HTML}
+        ${leakFlagBlock(mem._exampleLeak)}
         <input class="mc-input mcp-field-title" value="${esc(mem.title || '')}" placeholder="标题">
 
         <div class="mcp-meta-row">
@@ -224,6 +225,7 @@ function buildKnowledgeCard(kb, index) {
     return `
     <div class="mcp-card" data-type="knowledge" data-index="${index}" data-category="${esc(cat)}" data-update="${esc(updateOf)}">
         ${DEL_BTN_HTML}
+        ${leakFlagBlock(kb._exampleLeak)}
         ${updateBlock}
         ${dupBlock}
         <div class="mcp-kb-head">
@@ -295,6 +297,14 @@ function buildTargetBlock(target) {
 
 // 单条删除按钮:第一次点进入待确认(变红显"确删?"),3 秒内再点才真删,防误触
 const DEL_BTN_HTML = '<button type="button" class="mcp-card-del" title="删掉这条，本次不写入">🗑</button>';
+
+/** 示例泄漏旗:模型把提示词示范例文里的人物抄进了产出,提醒人工删除或改写,不自动丢弃 */
+function leakFlagBlock(leakName) {
+    if (!leakName) return '';
+    return `<div class="mcp-kb-flags">
+        <span class="mcp-flag mcp-flag-leak" title="这条内容出现了落墨提示词示范例文里的人物,大概率是 AI 把示例当正文抄了——建议删掉这条重新结晶,或手动改写">⚠ 疑似抄示例：出现「${esc(leakName)}」</span>
+    </div>`;
+}
 
 function subtitleText(memCount, kbCount) {
     if (memCount === 0 && kbCount === 0) return '条目已全部删除';

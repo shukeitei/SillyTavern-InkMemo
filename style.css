@@ -560,6 +560,7 @@
 }
 /* 疑似重复:告警橘,提示人裁决(非错误红,不自动丢) */
 .mcp-flag-dup    { color: #F0B267; background: rgba(240, 178, 103, 0.16); border-color: rgba(240, 178, 103, 0.38); }
+.mcp-flag-leak   { color: #F08A8A; background: rgba(240, 138, 138, 0.14); border-color: rgba(240, 138, 138, 0.38); }
 
 /* Phase 2:update 更新块——默认勾选"失效旧条目",附旧条目原文供对比裁决 */
 .mcp-kb-update {
