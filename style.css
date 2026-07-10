@@ -442,6 +442,7 @@
 .mcp-section-header:hover { background: rgba(180, 200, 255, 0.09); }
 
 .mcp-card {
+    position: relative;
     background: rgba(255, 255, 255, 0.025);
     border: 0.5px solid rgba(255, 255, 255, 0.08);
     border-radius: var(--mc-radius-md);
@@ -450,6 +451,41 @@
     border-left: 3px solid #F8A672;
 }
 .mcp-card:last-child { margin-bottom: 4px; }
+
+/* 单条删除按钮:常态半隐,悬停卡片时显形;待确认态变红 */
+.mcp-card-del {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border: 0.5px solid transparent;
+    border-radius: var(--mc-radius-sm, 8px);
+    background: transparent;
+    color: var(--mc-text-low, #8a8296);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.45;
+    transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+    z-index: 1;
+}
+.mcp-card:hover .mcp-card-del { opacity: 1; }
+.mcp-card-del:hover { background: rgba(255, 107, 107, 0.12); color: #ff8a8a; }
+.mcp-card-del.mcp-del-arm {
+    opacity: 1;
+    background: rgba(255, 107, 107, 0.16);
+    border-color: rgba(255, 107, 107, 0.55);
+    color: #ff8a8a;
+    font-size: 12px;
+    font-weight: 600;
+}
+/* 首行内容给按钮让位,避免文字压到按钮下面(input 选择器压过下方 padding: 8px 12px) */
+.mcp-card[data-type="memory"] > input.mcp-field-title { padding-right: 34px; }
+.mcp-card > .mcp-kb-update,
+.mcp-card > .mcp-kb-flags,
+.mcp-kb-head { padding-right: 34px; }
 
 .mcp-card .mcp-field-title {
     font-weight: 600; font-size: 15px;

@@ -72,9 +72,7 @@ function buildPreviewContent(parsed, target) {
     let html = `
         <div class="mcp-header">
             <div class="mcp-title">✦ 结晶预览</div>
-            <div class="mcp-subtitle">
-                共 ${memCount} 条回忆录${kbCount > 0 ? ` · ${kbCount} 条知识库` : ''}
-            </div>
+            <div class="mcp-subtitle">${subtitleText(memCount, kbCount)}</div>
         </div>
         ${buildTargetBlock(target)}`;
 
@@ -83,7 +81,7 @@ function buildPreviewContent(parsed, target) {
         html += `
         <div class="mc-section mcp-section">
             <div class="mc-section-header mcp-section-header" aria-expanded="true">
-                <span>回忆录 (${memCount})</span>
+                <span class="mcp-sec-count" data-count-type="memory">回忆录 (${memCount})</span>
                 <span class="mc-chevron mc-chevron-open">▾</span>
             </div>
             <div class="mc-section-body mc-open mcp-section-body">
@@ -97,7 +95,7 @@ function buildPreviewContent(parsed, target) {
         html += `
         <div class="mc-section mcp-section">
             <div class="mc-section-header mcp-section-header" aria-expanded="true">
-                <span>角色知识库 (${kbCount})</span>
+                <span class="mcp-sec-count" data-count-type="knowledge">角色知识库 (${kbCount})</span>
                 <span class="mc-chevron mc-chevron-open">▾</span>
             </div>
             <div class="mc-section-body mc-open mcp-section-body">
@@ -121,6 +119,7 @@ function buildMemoryCard(mem, index) {
     const kw = mem.keywords || {};
     return `
     <div class="mcp-card" data-type="memory" data-index="${index}">
+        ${DEL_BTN_HTML}
         <input class="mc-input mcp-field-title" value="${esc(mem.title || '')}" placeholder="标题">
 
         <div class="mcp-meta-row">
@@ -224,6 +223,7 @@ function buildKnowledgeCard(kb, index) {
         </div>` : '';
     return `
     <div class="mcp-card" data-type="knowledge" data-index="${index}" data-category="${esc(cat)}" data-update="${esc(updateOf)}">
+        ${DEL_BTN_HTML}
         ${updateBlock}
         ${dupBlock}
         <div class="mcp-kb-head">
@@ -293,6 +293,26 @@ function buildTargetBlock(target) {
     </div>`;
 }
 
+// 单条删除按钮:第一次点进入待确认(变红显"确删?"),3 秒内再点才真删,防误触
+const DEL_BTN_HTML = '<button type="button" class="mcp-card-del" title="删掉这条，本次不写入">🗑</button>';
+
+function subtitleText(memCount, kbCount) {
+    if (memCount === 0 && kbCount === 0) return '条目已全部删除';
+    return `共 ${memCount} 条回忆录${kbCount > 0 ? ` · ${kbCount} 条知识库` : ''}`;
+}
+
+/** 删除条目后同步顶部小计与分区计数 */
+function refreshCounts(root) {
+    const memCount = root.querySelectorAll('.mcp-card[data-type="memory"]').length;
+    const kbCount = root.querySelectorAll('.mcp-card[data-type="knowledge"]').length;
+    const subtitle = root.querySelector('.mcp-subtitle');
+    if (subtitle) subtitle.textContent = subtitleText(memCount, kbCount);
+    root.querySelectorAll('.mcp-sec-count').forEach(span => {
+        const type = span.getAttribute('data-count-type');
+        span.textContent = type === 'memory' ? `回忆录 (${memCount})` : `角色知识库 (${kbCount})`;
+    });
+}
+
 function buildTags(arr) {
     if (!arr || !arr.length) return '';
     return arr.map(t => `<span class="mcp-tag">${esc(t)}<span class="mcp-tag-x">×</span></span>`).join('');
@@ -352,6 +372,28 @@ function bindEvents(root, originalParsed, callbacks, mode) {
         if (e.target.classList.contains('mcp-tag-x')) {
             e.target.parentElement.remove();
         }
+    });
+
+    // 单条删除:collectEdits 按 DOM 现存卡片收集,删掉卡片 = 本次不写入
+    root.addEventListener('click', (e) => {
+        const btn = e.target.closest('.mcp-card-del');
+        if (!btn || !root.contains(btn)) return;
+        if (!btn.classList.contains('mcp-del-arm')) {
+            btn.classList.add('mcp-del-arm');
+            btn.textContent = '确删?';
+            setTimeout(() => {
+                if (!btn.isConnected) return;
+                btn.classList.remove('mcp-del-arm');
+                btn.textContent = '🗑';
+            }, 3000);
+            return;
+        }
+        const card = btn.closest('.mcp-card');
+        const section = card?.closest('.mcp-section');
+        card?.remove();
+        // 该区删空 → 整区（含分区头）一起撤掉
+        if (section && !section.querySelector('.mcp-card')) section.remove();
+        refreshCounts(root);
     });
 
     // 标签添加（回车）
@@ -419,6 +461,10 @@ function bindEvents(root, originalParsed, callbacks, mode) {
     confirmBtn?.addEventListener('click', () => {
         if (!targetState.confirmed) {
             if (typeof toastr !== 'undefined') toastr.warning('请先在上方确定写入目标', '落墨');
+            return;
+        }
+        if (!root.querySelector('.mcp-card')) {
+            if (typeof toastr !== 'undefined') toastr.warning('条目已全部删除，没有可写入的内容——直接点「取消」即可', '落墨');
             return;
         }
         const target = collectTarget(root, callbacks.target);
