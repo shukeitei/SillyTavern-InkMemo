@@ -19,6 +19,7 @@ import { runTriggers, evaluate, debugTriggers } from './src/trigger-engine.js';
 import { mountInjector } from './src/injector.js';
 import { bindTriggerSettings, renderTriggerLog } from './src/trigger-ui.js';
 import { mountFloatingPanel, openFloatPanel, refreshFloatPanel } from './src/floating-panel.js';
+import { mountMesButton } from './src/mes-button.js';
 import { checkSyncDiff, renderSyncHint } from './src/sync-check.js';
 import { startTour, maybeStartTour } from './src/tour.js';
 
@@ -780,6 +781,22 @@ jQuery(async () => {
         },
     });
     $(document).on('click', '#mc-btn-open-float', openFloatPanel);
+
+    // 楼层点选结晶范围:选完只回填楼层框,不直接开晶(保留手动确认防呆)
+    mountMesButton({
+        onRangePicked: (from, to) => {
+            $('#mc-floor-from').val(from);
+            $('#mc-floor-to').val(to);
+            if (window.innerWidth <= 600) {
+                // 手机端没有浮动面板:范围已填进扩展面板结晶区,提示去那按
+                if (typeof toastr !== 'undefined') toastr.success(`已选 #${from} → #${to},去落墨面板点预览/结晶`, '落墨');
+                return;
+            }
+            openFloatPanel(); // fillDefaults 会重置楼层,先开再覆写
+            $('#mc-fp-from').val(from);
+            $('#mc-fp-to').val(to);
+        },
+    });
 
     $(document).on('click', '#mc-sync-from-wb', syncFromWorldbook);
     $(document).on('click', '#mc-refresh-list', () => {

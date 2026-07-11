@@ -1274,3 +1274,11 @@
     .mcp-tag-x { padding: 10px 10px; margin: -10px -6px; }
     .mc-pill-input { padding: 6px 12px; }
 }
+
+/* ── 楼层点选结晶范围(消息操作区墨滴按钮) ─────────────── */
+/* 尺寸/透明度跟随 ST 原生 .extraMesButtons .mes_button,只补状态色 */
+.mc-mes-pick-active {
+    color: var(--mc-primary) !important;
+    opacity: 1 !important;
+    filter: drop-shadow(0 0 4px rgba(248, 166, 114, 0.55));
+}
