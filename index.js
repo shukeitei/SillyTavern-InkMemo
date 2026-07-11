@@ -19,7 +19,7 @@ import { runTriggers, evaluate, debugTriggers } from './src/trigger-engine.js';
 import { mountInjector } from './src/injector.js';
 import { bindTriggerSettings, renderTriggerLog } from './src/trigger-ui.js';
 import { mountFloatingPanel, openFloatPanel, refreshFloatPanel } from './src/floating-panel.js';
-import { mountMesButton } from './src/mes-button.js';
+import { mountMesButton, cancelPick } from './src/mes-button.js';
 import { checkSyncDiff, renderSyncHint } from './src/sync-check.js';
 import { startTour, maybeStartTour } from './src/tour.js';
 
@@ -784,18 +784,24 @@ jQuery(async () => {
 
     // 楼层点选结晶范围:选完只回填楼层框,不直接开晶(保留手动确认防呆)
     mountMesButton({
+        // 手机端第一点:直接弹底部面板当状态提示(桌面端走 toast,不进这里)
+        onPickStart: (from) => {
+            openFloatPanel(); // fillDefaults 会重置楼层,先开再覆写
+            $('#mc-fp-from').val(from);
+            $('#mc-fp-to').val('');
+            $('#mc-fp-status').text(`✦ 起点 #${from} · 同层再点=只晶这层 · 点别层=跨层 · 关面板=取消`);
+        },
         onRangePicked: (from, to) => {
             $('#mc-floor-from').val(from);
             $('#mc-floor-to').val(to);
-            if (window.innerWidth <= 600) {
-                // 手机端没有浮动面板:范围已填进扩展面板结晶区,提示去那按
-                if (typeof toastr !== 'undefined') toastr.success(`已选 #${from} → #${to},去落墨面板点预览/结晶`, '落墨');
-                return;
-            }
-            openFloatPanel(); // fillDefaults 会重置楼层,先开再覆写
+            openFloatPanel();
             $('#mc-fp-from').val(from);
             $('#mc-fp-to').val(to);
         },
+    });
+    // 手机端浮动面板被关掉时,取消挂起的点选起点(桌面端起点提示走 toast,与面板无关)
+    document.addEventListener('luomo:fp-closed', () => {
+        if (window.innerWidth <= 600) cancelPick(true);
     });
 
     $(document).on('click', '#mc-sync-from-wb', syncFromWorldbook);

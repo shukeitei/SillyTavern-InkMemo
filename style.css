@@ -1282,3 +1282,23 @@
     opacity: 1 !important;
     filter: drop-shadow(0 0 4px rgba(248, 166, 114, 0.55));
 }
+
+/* ── 浮动结晶面板·手机端底部小抽屉形态 ─────────────── */
+/* 类由 openFloatPanel 在 ≤600px 时挂上;桌面拖动/位置记忆在该形态下停用 */
+#mc-float-panel.mc-fp-mobile {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 78vh;
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
+#mc-float-panel.mc-fp-mobile .mc-fp-header { cursor: default; touch-action: auto; }
+/* 借进来的内联预览容器:沿用抽屉里的分隔线观感 */
+#mc-float-panel.mc-fp-mobile #mc-crystal-inline { border-top: 0.5px solid var(--mc-outline-variant); margin-top: 8px; }

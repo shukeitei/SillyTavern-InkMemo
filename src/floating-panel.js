@@ -1,7 +1,8 @@
 // src/floating-panel.js
 // 浮动结晶面板:连续分段结晶时不用开扩展抽屉、不用回设置区查上次晶到哪
 // 纯操作面板:状态行(上次结晶到哪/当前楼层)+ 楼层范围 + 预览/结晶按钮
-// 入口:魔棒菜单(#extensionsMenu)+ 设置面板「浮动结晶面板」按钮;仅桌面端
+// 入口:魔棒菜单(#extensionsMenu)+ 设置面板「浮动结晶面板」按钮 + 楼层点选(mes-button)
+// 桌面=可拖动悬浮小窗;手机(≤600px)=固定底部小抽屉,并把抽屉里的两个内联预览容器借进来
 
 import { extension_settings, getContext } from '../../../../extensions.js';
 import { saveSettingsDebounced } from '../../../../../script.js';
@@ -33,12 +34,19 @@ export function toggleFloatPanel() {
 }
 
 export function openFloatPanel() {
-    if (window.innerWidth <= 600) {
-        if (typeof toastr !== 'undefined') toastr.info('浮动面板仅桌面端,手机请用扩展面板里的结晶区', '落墨');
-        return;
-    }
     const panel = ensurePanel();
-    applySavedPos(panel);
+    if (window.innerWidth <= 600) {
+        // 手机端:底部小抽屉形态(定位交给 .mc-fp-mobile 的 CSS,清掉桌面拖动残留的行内定位)
+        panel.classList.add('mc-fp-mobile');
+        panel.style.left = '';
+        panel.style.top = '';
+        panel.style.right = '';
+        adoptInlineContainers(panel);
+    } else {
+        panel.classList.remove('mc-fp-mobile');
+        restoreInlineContainers();
+        applySavedPos(panel);
+    }
     fillDefaults();
     panel.style.display = '';
 }
@@ -46,6 +54,9 @@ export function openFloatPanel() {
 export function closeFloatPanel() {
     const el = document.getElementById(PANEL_ID);
     if (el) el.style.display = 'none';
+    restoreInlineContainers();
+    // 手机端点选到一半关面板要能取消挂起的起点,index.js 监听后处理
+    document.dispatchEvent(new CustomEvent('luomo:fp-closed'));
 }
 
 /** 切聊天后刷新状态行与默认楼层(面板开着才动) */
@@ -151,6 +162,33 @@ function fillDefaults() {
     }
 }
 
+// ── 手机端:借用抽屉里的内联预览容器 ─────────────────
+// 提取预览(#mc-inline-preview)/结晶预览(#mc-crystal-inline)手机端渲染在扩展抽屉里,
+// 抽屉不开就看不见。浮动面板打开时把两个容器挪进面板(下游 preview 链路按 id 找容器,零改动),
+// 关面板挪回原位,抽屉里的老流程不受影响。
+const INLINE_IDS = ['mc-inline-preview', 'mc-crystal-inline'];
+let inlineHome = null; // [{ el, parent, next }]
+
+function adoptInlineContainers(panel) {
+    if (inlineHome) return;
+    inlineHome = [];
+    for (const id of INLINE_IDS) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        inlineHome.push({ el, parent: el.parentNode, next: el.nextSibling });
+        panel.appendChild(el);
+    }
+}
+
+function restoreInlineContainers() {
+    if (!inlineHome) return;
+    for (const { el, parent, next } of inlineHome) {
+        el.style.display = 'none'; // 收起旧内容再还回抽屉
+        parent.insertBefore(el, next);
+    }
+    inlineHome = null;
+}
+
 // ── 拖动 + 位置记忆 ─────────────────────────────────
 
 function getPosBucket() {
@@ -172,6 +210,7 @@ function applySavedPos(panel) {
 function makeDraggable(panel, handle) {
     let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
     handle.addEventListener('pointerdown', (e) => {
+        if (window.innerWidth <= 600) return; // 手机端底部抽屉形态不拖动
         if (e.target.closest('.mc-fp-close')) return;
         dragging = true;
         startX = e.clientX;

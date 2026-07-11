@@ -10,7 +10,7 @@ const BTN_CLASS = 'mc-mes-pick';
 const ACTIVE_CLASS = 'mc-mes-pick-active';
 const BTN_HTML = `<div title="落墨 · 点选结晶范围" class="mes_button ${BTN_CLASS} fa-solid fa-droplet" tabindex="0"></div>`;
 
-let deps = null; // { onRangePicked(from, to) } 由 index.js 注入,避免循环依赖
+let deps = null; // { onPickStart(from), onRangePicked(from, to) } 由 index.js 注入,避免循环依赖
 let pendingFrom = null;
 let pendingToast = null;
 
@@ -47,6 +47,12 @@ function handlePick(mesid) {
     if (pendingFrom === null) {
         pendingFrom = mesid;
         setActive(mesid, true);
+        if (window.innerWidth <= 600) {
+            // 手机端不弹 toast(会挡住消息工具栏且"点提示=取消"有歧义):
+            // 直接弹底部浮动面板当状态提示,取消=关面板
+            deps?.onPickStart?.(mesid);
+            return;
+        }
         if (typeof toastr !== 'undefined') {
             pendingToast = toastr.info(
                 '同层再点一下=只晶这一层<br>点别的楼层=跨层结晶<br><u>点这条提示取消</u>',
@@ -70,8 +76,8 @@ function handlePick(mesid) {
     deps?.onRangePicked(from, to);
 }
 
-/** silent=true 时只清状态不提示(选完范围/切聊天) */
-function cancelPick(silent) {
+/** silent=true 时只清状态不提示(选完范围/切聊天/手机端关面板);供 index.js 在面板关闭时调用 */
+export function cancelPick(silent) {
     if (pendingFrom !== null) setActive(pendingFrom, false);
     pendingFrom = null;
     if (pendingToast && typeof toastr !== 'undefined') toastr.clear(pendingToast);
