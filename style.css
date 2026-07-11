@@ -1286,6 +1286,8 @@
 /* ── 浮动结晶面板·手机端底部小抽屉形态 ─────────────── */
 /* 类由 openFloatPanel 在 ≤600px 时挂上;桌面拖动/位置记忆在该形态下停用 */
 #mc-float-panel.mc-fp-mobile {
+    /* 贴底靠 JS translateY 修正(见 pinToViewportBottom);slide-up 的 transform 关键帧会打架,换淡入 */
+    animation: mc-fade-in 0.2s ease;
     top: auto;
     left: 0;
     right: 0;

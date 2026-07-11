@@ -49,6 +49,17 @@ export function openFloatPanel() {
     }
     fillDefaults();
     panel.style.display = '';
+    if (window.innerWidth <= 600) pinToViewportBottom(panel);
+    else panel.style.transform = '';
+}
+
+/** 手机端贴底修正:ST 给 <html> 挂了 transform(哪怕恒等),按规范 fixed 的包含块被劫持为
+ *  html 盒——窄屏布局下该盒高度可为 0,bottom:0 会把面板整个钉到屏幕上方外(真机实测)。
+ *  getBoundingClientRect 永远是真视口坐标,量出偏差用 translateY 拉回真视口底部。 */
+function pinToViewportBottom(panel) {
+    panel.style.transform = '';
+    const gap = window.innerHeight - panel.getBoundingClientRect().bottom;
+    if (Math.abs(gap) > 1) panel.style.transform = `translateY(${gap}px)`;
 }
 
 export function closeFloatPanel() {
