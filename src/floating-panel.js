@@ -140,6 +140,7 @@ function ensurePanel() {
     panel.querySelector('#mc-fp-hidden').addEventListener('click', () => {
         const ops = panel.querySelector('#mc-fp-hideops');
         ops.style.display = ops.style.display === 'none' ? '' : 'none';
+        renderHiddenStatus(); // 刷新行尾的展开/收起箭头
     });
     const doHide = async (unhide) => {
         const range = readHideRange();
@@ -249,14 +250,16 @@ function getHiddenInfo() {
 function renderHiddenStatus() {
     const el = document.getElementById('mc-fp-hidden');
     if (!el) return;
+    const ops = document.getElementById('mc-fp-hideops');
+    const arrow = (ops && ops.style.display !== 'none') ? ' ▾' : ' ▸';
     const info = getHiddenInfo();
     if (!info || info.total === 0) {
-        el.textContent = '👻 无隐藏楼层';
+        el.textContent = '👻 无隐藏楼层' + arrow;
         el.classList.add('mc-fp-hidden-none');
         return;
     }
     el.classList.remove('mc-fp-hidden-none');
-    el.textContent = `👻 已隐藏至 #${info.maxHidden}` + (info.holes > 0 ? ` · 中间留 ${info.holes} 楼未藏` : '');
+    el.textContent = `👻 已隐藏至 #${info.maxHidden}` + (info.holes > 0 ? ` · 中间留 ${info.holes} 楼未藏` : '') + arrow;
 }
 
 // 隐藏/取消隐藏不发 ST 事件,但会同步改 .mes 的 is_system 属性——盯 DOM 属性变化刷新状态。
