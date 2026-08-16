@@ -179,18 +179,20 @@ function fillDefaults() {
 // ── 隐藏楼层状态 ────────────────────────────────────
 // 结晶完回头隐藏楼层时,隐藏进度和结晶进度经常不同步,不显示就得翻聊天记录找幽灵图标。
 // ST 的隐藏=message.is_system,含 /sys 旁白等真系统消息(和聊天里幽灵图标口径一致)。
+// 口径:主数字=最后一个隐藏楼(最远的幽灵)。跳着隐藏时中间留白多半是故意的
+// (回溯/总结楼不想藏),所以"隐藏至"指隐藏操作推进到哪,不是从头连续藏到哪。
 
-/** @returns {{prefixEnd:number, total:number}|null} prefixEnd=从 #0 起连续隐藏段的末楼(-1=首楼未隐藏) */
+/** @returns {{maxHidden:number, total:number}|null} maxHidden=最大隐藏楼层号(-1=无隐藏) */
 function getHiddenInfo() {
     const chat = getContext()?.chat;
     if (!chat || chat.length === 0) return null;
-    let prefixEnd = -1, total = 0;
+    let maxHidden = -1, total = 0;
     for (let i = 0; i < chat.length; i++) {
         if (!chat[i].is_system) continue;
         total++;
-        if (prefixEnd === i - 1) prefixEnd = i;
+        maxHidden = i;
     }
-    return { prefixEnd, total };
+    return { maxHidden, total };
 }
 
 function renderHiddenStatus() {
@@ -203,12 +205,8 @@ function renderHiddenStatus() {
         return;
     }
     el.classList.remove('mc-fp-hidden-none');
-    const scattered = info.total - (info.prefixEnd + 1);
-    if (info.prefixEnd >= 0) {
-        el.textContent = `👻 已隐藏至 #${info.prefixEnd}` + (scattered > 0 ? ` · 后方散藏 ${scattered} 楼` : '');
-    } else {
-        el.textContent = `👻 散藏 ${info.total} 楼 · 首楼未隐藏`;
-    }
+    const holes = info.maxHidden + 1 - info.total;
+    el.textContent = `👻 已隐藏至 #${info.maxHidden}` + (holes > 0 ? ` · 中间留 ${holes} 楼未藏` : '');
 }
 
 // 隐藏/取消隐藏不发 ST 事件,但会同步改 .mes 的 is_system 属性——盯 DOM 属性变化刷新状态。
