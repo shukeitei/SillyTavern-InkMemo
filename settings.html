@@ -53,6 +53,17 @@
                        value="8192" min="1024" max="32768" step="512" style="width: 100px;" />
                 <span style="font-size: 12px; color: var(--mc-text-secondary);">v2 prompt 建议 ≥ 8192,长原文用 16384</span>
             </div>
+            <label class="mc-label" for="mc-api-thinking" style="margin-top: 12px;">思考模式</label>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <select class="mc-input" id="mc-api-thinking" style="width: 120px;">
+                    <option value="disabled">关（推荐）</option>
+                    <option value="enabled">开</option>
+                    <option value="auto">跟随服务商</option>
+                </select>
+                <span style="font-size: 12px; color: var(--mc-text-secondary);">
+                    思考模型的推理链也算进 Max Tokens,开着容易把正文挤没导致结晶失败
+                </span>
+            </div>
         </div>
     </div>
 

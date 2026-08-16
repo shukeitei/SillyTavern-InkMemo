@@ -5,7 +5,7 @@ import { extension_settings, getContext } from '../../../extensions.js';
 import { saveSettingsDebounced, eventSource, event_types } from '../../../../script.js';
 import { loadWorldInfo, world_names } from '../../../world-info.js';
 import { extractMessages, renderPreviewHTML } from './src/extractor.js';
-import { callChatAPI, parseResultJSON, parseKnowledgeJSON, fetchModels, APIError } from './src/api.js';
+import { callChatAPI, parseResultJSON, parseKnowledgeJSON, parseFromResult, fetchModels, APIError } from './src/api.js';
 import { buildMessages, buildKnowledgeMessages } from './src/prompt-template.js';
 import { showCrystalPreview } from './src/preview.js';
 import { writeConfirmedEntries, DEFAULT_MEMORY_BOOK, DEFAULT_KNOWLEDGE_BOOK } from './src/worldbook.js';
@@ -36,6 +36,10 @@ const DEFAULT_SETTINGS = {
     api_model: 'deepseek-chat',
     api_temperature: 0.7,
     api_max_tokens: 8192,
+    // 思考模式默认关：结晶是格式化抽取，不吃推理链，而 DeepSeek 系把 reasoning_content
+    // 一起算进 max_tokens——推理一多就把正文挤没/截半句，表现为随机的「返回格式异常」。
+    // 'auto' 保留给不认 thinking 参数的服务商（不发该字段）。
+    api_thinking: 'disabled',
     wb_memory_book: '',
     wb_knowledge_book: '',
     clean_tags: 'thinking',
@@ -87,6 +91,7 @@ function populateUI() {
     $('#mc-api-model').val(s.api_model);
     $('#mc-api-temperature').val(s.api_temperature);
     $('#mc-api-max-tokens').val(s.api_max_tokens);
+    $('#mc-api-thinking').val(s.api_thinking || 'disabled');
     $('#mc-wb-memory-book').val(s.wb_memory_book || '');
     $('#mc-wb-knowledge-book').val(s.wb_knowledge_book || '');
     $('#mc-clean-tags').val(s.clean_tags);
@@ -113,6 +118,10 @@ function bindSettingsEvents() {
     });
     $('#mc-api-max-tokens').on('change', function () {
         extension_settings[EXT_NAME].api_max_tokens = parseInt($(this).val(), 10) || 8192;
+        saveSettingsDebounced();
+    });
+    $('#mc-api-thinking').on('change', function () {
+        extension_settings[EXT_NAME].api_thinking = $(this).val();
         saveSettingsDebounced();
     });
     $('#mc-wb-memory-book').on('change', function () {
@@ -294,6 +303,7 @@ async function startCrystallization(mode = 'immersive') {
     };
     const temperature = parseFloat(s.api_temperature) || 0.7;
     const maxTokens = parseInt(s.api_max_tokens, 10) || 8192;
+    const thinking = s.api_thinking || 'disabled';
 
     // Phase 1:回忆结晶与知识提取拆成两次独立请求,并行发出(总等待≈单次)。
     // 输入同为 lastExtraction.formatted(原始楼层);知识调用不依赖回忆产出。
@@ -305,9 +315,9 @@ async function startCrystallization(mode = 'immersive') {
 
     try {
         // 回忆:失败即整轮失败(走外层 catch)。知识:独立 try/catch,失败降级为 knowledge:[] + 警告,不连累回忆。
-        const memoirPromise = callChatAPI(config, memoirMessages, { temperature, maxTokens });
-        const knowledgePromise = callChatAPI(config, knowledgeMessages, { temperature: KNOWLEDGE_TEMPERATURE, maxTokens })
-            .then(raw => ({ knowledge: parseKnowledgeJSON(raw).knowledge, raw }))
+        const memoirPromise = callChatAPI(config, memoirMessages, { temperature, maxTokens, thinking });
+        const knowledgePromise = callChatAPI(config, knowledgeMessages, { temperature: KNOWLEDGE_TEMPERATURE, maxTokens, thinking })
+            .then(res => ({ knowledge: parseFromResult(res, parseKnowledgeJSON).knowledge, raw: res.content }))
             .catch(err => {
                 console.error(`${LOG_PREFIX} 知识提取失败(不影响回忆结晶):`, err);
                 if (typeof toastr !== 'undefined') {
@@ -316,8 +326,9 @@ async function startCrystallization(mode = 'immersive') {
                 return { knowledge: [], raw: '' };
             });
 
-        const [memoirRaw, knowledgeOutcome] = await Promise.all([memoirPromise, knowledgePromise]);
-        const memoirParsed = parseResultJSON(memoirRaw);
+        const [memoirRes, knowledgeOutcome] = await Promise.all([memoirPromise, knowledgePromise]);
+        const memoirRaw = memoirRes.content;
+        const memoirParsed = parseFromResult(memoirRes, parseResultJSON);
         const parsed = {
             memories: memoirParsed.memories || [],
             knowledge: knowledgeOutcome.knowledge || [],
@@ -517,8 +528,11 @@ function handleCrystallError(err) {
             else if (err.status === 429) toastr.error('请求过于频繁，稍后再试', '落墨');
             else toastr.error(`API 错误 ${err.status}`, '落墨');
             break;
+        case 'TRUNCATED':
+            toastr.error('输出被截断：把 API 设置里的「思考模式」设为「关」，或调大 Max Tokens', '落墨', { timeOut: 10000 });
+            break;
         case 'JSON_PARSE_ERROR':
-            toastr.error('AI 返回格式异常，请重试', '落墨');
+            toastr.error('AI 返回格式异常，请重试（若反复出现，把「思考模式」设为「关」）', '落墨', { timeOut: 8000 });
             break;
         default:
             toastr.error(err.message, '落墨');
