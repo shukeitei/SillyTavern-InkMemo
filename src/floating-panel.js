@@ -6,6 +6,7 @@
 
 import { extension_settings, getContext } from '../../../../extensions.js';
 import { saveSettingsDebounced } from '../../../../../script.js';
+import { hideChatMessageRange } from '../../../../chats.js';
 import { getLastCrystallizedTo } from './storage.js';
 
 const MODULE_NAME = 'luomo';
@@ -91,7 +92,16 @@ function ensurePanel() {
             <button class="mc-fp-close" id="mc-fp-close" title="关闭">×</button>
         </div>
         <div class="mc-fp-status" id="mc-fp-status">…</div>
-        <div class="mc-fp-hidden" id="mc-fp-hidden"></div>
+        <div class="mc-fp-hidden" id="mc-fp-hidden" title="点击展开/收起隐藏操作"></div>
+        <div class="mc-fp-range mc-fp-hideops" id="mc-fp-hideops" style="display:none">
+            <span class="mc-range-hash">#</span>
+            <input class="mc-input mc-fp-input" type="number" id="mc-fp-hide-from" min="0" placeholder="0">
+            <span class="mc-range-sep">→</span>
+            <span class="mc-range-hash">#</span>
+            <input class="mc-input mc-fp-input" type="number" id="mc-fp-hide-to" min="0" placeholder="结束">
+            <button class="mc-btn-ghost" id="mc-fp-hide-do">隐藏</button>
+            <button class="mc-btn-ghost" id="mc-fp-unhide-do">恢复</button>
+        </div>
         <div class="mc-fp-range">
             <span class="mc-range-hash">#</span>
             <input class="mc-input mc-fp-input" type="number" id="mc-fp-from" min="0" placeholder="起始">
@@ -125,9 +135,36 @@ function ensurePanel() {
         const range = readRange();
         if (range) deps?.onCrystallize(range.from, range.to, 'concise');
     });
+    // 隐藏状态行点击展开操作行;隐藏/恢复直接调 ST 的 hideChatMessageRange(内部自落盘),
+    // 状态行由 is_system 属性的 MutationObserver 自动刷新,这里不手动刷
+    panel.querySelector('#mc-fp-hidden').addEventListener('click', () => {
+        const ops = panel.querySelector('#mc-fp-hideops');
+        ops.style.display = ops.style.display === 'none' ? '' : 'none';
+    });
+    const doHide = async (unhide) => {
+        const range = readHideRange();
+        if (!range) return;
+        await hideChatMessageRange(range.from, range.to, unhide);
+        if (typeof toastr !== 'undefined') toastr.success(`已${unhide ? '恢复' : '隐藏'} #${range.from}–#${range.to}`, '落墨');
+    };
+    panel.querySelector('#mc-fp-hide-do').addEventListener('click', () => doHide(false));
+    panel.querySelector('#mc-fp-unhide-do').addEventListener('click', () => doHide(true));
     makeDraggable(panel, panel.querySelector('#mc-fp-drag'));
     console.log(`${LOG_PREFIX} 浮动结晶面板已创建`);
     return panel;
+}
+
+/** 隐藏操作的楼层范围:起始留空=从 #0 开始("隐藏前面 N 楼"的常用姿势),结束必填 */
+function readHideRange() {
+    const fromRaw = document.getElementById('mc-fp-hide-from')?.value;
+    const from = fromRaw === '' ? 0 : parseInt(fromRaw, 10);
+    const to = parseInt(document.getElementById('mc-fp-hide-to')?.value, 10);
+    const max = getMaxFloor();
+    if (isNaN(from) || isNaN(to) || from > to || max === null || to > max) {
+        if (typeof toastr !== 'undefined') toastr.warning('请填好隐藏的结束楼层(起始留空=从 #0 起)', '落墨');
+        return null;
+    }
+    return { from, to };
 }
 
 function readRange() {
