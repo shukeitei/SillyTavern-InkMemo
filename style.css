@@ -1188,7 +1188,9 @@
     transition: background 0.2s ease, color 0.2s ease;
 }
 .mc-fp-close:hover { background: rgba(255, 255, 255, 0.06); color: var(--mc-text-primary); }
-.mc-fp-status { font-size: 12px; color: var(--mc-text-mid); margin-bottom: 10px; line-height: 1.5; }
+.mc-fp-status { font-size: 12px; color: var(--mc-text-mid); margin-bottom: 2px; line-height: 1.5; }
+.mc-fp-hidden { font-size: 12px; color: var(--mc-text-mid); margin-bottom: 10px; line-height: 1.5; }
+.mc-fp-hidden-none { opacity: 0.5; }
 .mc-fp-range { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
 #mc-float-panel .mc-fp-input {
     width: 64px; min-width: 64px; flex: 0 0 auto;

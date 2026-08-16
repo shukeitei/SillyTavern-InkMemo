@@ -21,6 +21,7 @@ export function mountFloatingPanel(d) {
     document.addEventListener('luomo:crystal-written', () => {
         if (isOpen()) fillDefaults();
     });
+    watchHiddenChanges();
 }
 
 function isOpen() {
@@ -90,6 +91,7 @@ function ensurePanel() {
             <button class="mc-fp-close" id="mc-fp-close" title="关闭">×</button>
         </div>
         <div class="mc-fp-status" id="mc-fp-status">…</div>
+        <div class="mc-fp-hidden" id="mc-fp-hidden"></div>
         <div class="mc-fp-range">
             <span class="mc-range-hash">#</span>
             <input class="mc-input mc-fp-input" type="number" id="mc-fp-from" min="0" placeholder="起始">
@@ -171,6 +173,52 @@ function fillDefaults() {
     } else {
         statusEl.textContent = `上次结晶到 #${lastTo} · 当前 #${max} · 还差 ${max - from + 1} 楼`;
     }
+    renderHiddenStatus();
+}
+
+// ── 隐藏楼层状态 ────────────────────────────────────
+// 结晶完回头隐藏楼层时,隐藏进度和结晶进度经常不同步,不显示就得翻聊天记录找幽灵图标。
+// ST 的隐藏=message.is_system,含 /sys 旁白等真系统消息(和聊天里幽灵图标口径一致)。
+
+/** @returns {{prefixEnd:number, total:number}|null} prefixEnd=从 #0 起连续隐藏段的末楼(-1=首楼未隐藏) */
+function getHiddenInfo() {
+    const chat = getContext()?.chat;
+    if (!chat || chat.length === 0) return null;
+    let prefixEnd = -1, total = 0;
+    for (let i = 0; i < chat.length; i++) {
+        if (!chat[i].is_system) continue;
+        total++;
+        if (prefixEnd === i - 1) prefixEnd = i;
+    }
+    return { prefixEnd, total };
+}
+
+function renderHiddenStatus() {
+    const el = document.getElementById('mc-fp-hidden');
+    if (!el) return;
+    const info = getHiddenInfo();
+    if (!info || info.total === 0) {
+        el.textContent = '👻 无隐藏楼层';
+        el.classList.add('mc-fp-hidden-none');
+        return;
+    }
+    el.classList.remove('mc-fp-hidden-none');
+    const scattered = info.total - (info.prefixEnd + 1);
+    if (info.prefixEnd >= 0) {
+        el.textContent = `👻 已隐藏至 #${info.prefixEnd}` + (scattered > 0 ? ` · 后方散藏 ${scattered} 楼` : '');
+    } else {
+        el.textContent = `👻 散藏 ${info.total} 楼 · 首楼未隐藏`;
+    }
+}
+
+// 隐藏/取消隐藏不发 ST 事件,但会同步改 .mes 的 is_system 属性——盯 DOM 属性变化刷新状态。
+// 只刷隐藏行不动楼层输入框,避免把用户填到一半的范围冲掉。
+function watchHiddenChanges() {
+    const chatEl = document.getElementById('chat');
+    if (!chatEl) return;
+    new MutationObserver(() => {
+        if (isOpen()) renderHiddenStatus();
+    }).observe(chatEl, { subtree: true, attributes: true, attributeFilter: ['is_system'] });
 }
 
 // ── 手机端:借用抽屉里的内联预览容器 ─────────────────
