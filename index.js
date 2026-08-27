@@ -44,7 +44,7 @@ const DEFAULT_SETTINGS = {
     wb_knowledge_book: '',
     clean_tags: 'thinking',
     filter_protagonist: true,      // 触发词主角名过滤总开关，默认开
-    protagonist_names: '',         // 手填主角名单，一行一个，选填（群聊补男女主名）
+    protagonist_names_by_scope: {}, // 手填主角名单,按 scope(群/角色卡)各存一份,一行一个,选填(群聊补男女主名)
 };
 
 // 暂存提取结果，供后续 Phase 3 使用
@@ -96,7 +96,19 @@ function populateUI() {
     $('#mc-wb-knowledge-book').val(s.wb_knowledge_book || '');
     $('#mc-clean-tags').val(s.clean_tags);
     $('#mc-filter-protagonist').prop('checked', s.filter_protagonist !== false);
-    $('#mc-protagonist-names').val(s.protagonist_names || '');
+    refreshProtagonistNamesField();
+}
+
+/** 主角名单按当前 scope 读写:切群/切卡时跟着换,不同群的男女主名互不串 */
+function getProtagonistNamesRaw() {
+    const s = extension_settings[EXT_NAME];
+    return String(s.protagonist_names_by_scope?.[getCurrentScope()] || '');
+}
+function refreshProtagonistNamesField() {
+    const $ta = $('#mc-protagonist-names');
+    if (!$ta.length) return;
+    $ta.val(getProtagonistNamesRaw());
+    $('#mc-protagonist-scope').text(`当前:${getScopeLabel(getCurrentScope())}`);
 }
 
 function bindSettingsEvents() {
@@ -141,7 +153,9 @@ function bindSettingsEvents() {
         saveSettingsDebounced();
     });
     $('#mc-protagonist-names').on('change', function () {
-        extension_settings[EXT_NAME].protagonist_names = $(this).val();
+        const s = extension_settings[EXT_NAME];
+        if (!s.protagonist_names_by_scope) s.protagonist_names_by_scope = {};
+        s.protagonist_names_by_scope[getCurrentScope()] = $(this).val();
         saveSettingsDebounced();
     });
     $('#mc-fetch-models').on('click', async function () {
@@ -215,7 +229,7 @@ function bindRipple() {
 function getProtagonistNames() {
     const s = extension_settings[EXT_NAME];
     const ctx = getContext();
-    const manual = String(s.protagonist_names || '').split('\n').map(t => t.trim());
+    const manual = getProtagonistNamesRaw().split('\n').map(t => t.trim());
     const auto = [ctx?.name1, ctx?.name2];
     return [...new Set([...auto, ...manual])].filter(n => n && n.length >= 2);
 }
@@ -769,6 +783,7 @@ jQuery(async () => {
         renderEntryList();
         refreshFloatPanel();
         refreshSyncHint();
+        refreshProtagonistNamesField();
     });
 
     // Phase 10.2: 建议同步——启动时查一次;每次结晶写入后也重查
