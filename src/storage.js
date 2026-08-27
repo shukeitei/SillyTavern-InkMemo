@@ -2,7 +2,7 @@
 // 基于 extension_settings.luomo.entries,按 scope 分桶
 
 import { extension_settings } from '../../../../extensions.js';
-import { saveSettingsDebounced } from '../../../../../script.js';
+import { saveSettingsDebounced, getRequestHeaders } from '../../../../../script.js';
 
 const MODULE_NAME = 'luomo';
 const STORAGE_VERSION = 3;
@@ -502,7 +502,11 @@ export function setChatCutoff(value) {
 /** 当前聊天最近一次结晶覆盖到的楼层(所有条目 source.range.to 的最大值),没结晶过返回 null。
  *  浮动结晶面板的状态行 + 默认起始楼层用 */
 export function getLastCrystallizedTo() {
-    const chatId = getCurrentChatId();
+    return maxCrystallizedTo(getCurrentChatId(), Infinity);
+}
+
+/** 某个 chatId 名下结晶到的最大楼层,只算 range.to ≤ cap 的条目;没有返回 null */
+export function maxCrystallizedTo(chatId, cap = Infinity) {
     if (!chatId) return null;
     const entries = initStorage();
     let max = null;
@@ -510,10 +514,107 @@ export function getLastCrystallizedTo() {
         for (const e of entries[scope]) {
             if (e.source?.chatId !== chatId) continue;
             const to = e.source?.range?.to;
-            if (Number.isFinite(to) && (max === null || to > max)) max = to;
+            if (Number.isFinite(to) && to <= cap && (max === null || to > max)) max = to;
         }
     }
     return max;
+}
+
+// ── 分支父链回溯 ────────────────────────────────────
+// ST 的分支/存档点是独立聊天文件(chat_metadata.main_chat 指向父聊天),分支前在原线
+// 结晶过的内容在分支里按 chatId 查就查不到,浮窗会说"本聊天还没结晶过"、起始楼层退回 #0。
+// 这里沿 main_chat 往上爬(拉父聊天文件拿祖父名),每一层用 send_date+name+is_user
+// 前缀比对算真实分支点(同春秋 computeBranchPoint 口径),祖先条目只算到分支点以内——
+// 原线在分支点之后续晶的不算本分支的。改过名的聊天条目仍挂旧名,回溯认不到(已知限制)。
+
+/** 子聊天与父聊天的真实分支点=最后一个共有楼;比不出返回 null */
+export function computeBranchPoint(childMsgs, parentMsgs) {
+    if (!Array.isArray(childMsgs) || !Array.isArray(parentMsgs)) return null;
+    const n = Math.min(childMsgs.length, parentMsgs.length);
+    let lcp = 0;
+    for (let i = 0; i < n; i++) {
+        const a = childMsgs[i], b = parentMsgs[i];
+        if (!a || !b) break;
+        if (a.send_date !== b.send_date || a.name !== b.name || !!a.is_user !== !!b.is_user) break;
+        lcp++;
+    }
+    return lcp > 0 ? lcp - 1 : null;
+}
+
+/** 拉某个聊天文件;返回 { msgs, mainChat }(msgs=纯楼层数组),拉不到返回 null */
+async function fetchChatFile(ctx, name) {
+    const file = String(name ?? '').replace(/\.jsonl$/, '');
+    if (!file) return null;
+    let endpoint, body;
+    if (ctx.groupId) {
+        endpoint = '/api/chats/group/get';
+        body = { id: file };
+    } else {
+        const char = ctx.characters?.[ctx.characterId];
+        if (!char) return null;
+        endpoint = '/api/chats/get';
+        body = { ch_name: char.name, file_name: file, avatar_url: char.avatar };
+    }
+    try {
+        const resp = await fetch(endpoint, {
+            method: 'POST', headers: getRequestHeaders(), cache: 'no-cache', body: JSON.stringify(body),
+        });
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        if (!Array.isArray(data)) return null;
+        const meta = data.find(m => m && typeof m === 'object' && m.chat_metadata && typeof m.mes !== 'string');
+        const msgs = data.filter(m => typeof m?.mes === 'string');
+        return { msgs, mainChat: meta?.chat_metadata?.main_chat ?? null };
+    } catch {
+        return null;
+    }
+}
+
+const MAX_ANCESTOR_DEPTH = 8;
+const ancestorCache = new Map(); // chatId → { chain, at } 一次会话内父链不会变,只在本地条目变多时重算
+
+/** 祖先链:[{ chatId, cap }],cap=该祖先在本分支视角下的有效楼层上限(逐层取 min) */
+export async function getAncestorChain() {
+    const ctx = getCtx();
+    const chatId = ctx?.chatId || null;
+    if (!chatId || !ctx.chatMetadata?.main_chat) return [];
+    const cached = ancestorCache.get(chatId);
+    if (cached) return cached;
+    const chain = [];
+    let childMsgs = ctx.chat;
+    let parentName = ctx.chatMetadata.main_chat;
+    let cap = Infinity;
+    for (let depth = 0; depth < MAX_ANCESTOR_DEPTH && parentName; depth++) {
+        const parent = await fetchChatFile(ctx, parentName);
+        if (!parent) break;
+        const bp = computeBranchPoint(childMsgs, parent.msgs);
+        if (bp === null) break; // 首楼都对不上,后面的更不可信
+        cap = Math.min(cap, bp);
+        chain.push({ chatId: String(parentName).replace(/\.jsonl$/, ''), cap });
+        if (cap <= 0) break; // 再往上也只剩 #0,不值得继续拉
+        childMsgs = parent.msgs;
+        parentName = parent.mainChat;
+    }
+    ancestorCache.set(chatId, chain);
+    return chain;
+}
+
+/** 纯函数:给定祖先链与本地值,算出"含原线"的上次结晶楼层与来源 */
+export function pickCrystallizedTo(localMax, chain, lookup = maxCrystallizedTo) {
+    let best = localMax, from = localMax === null ? null : 'local';
+    for (const { chatId, cap } of chain || []) {
+        const v = lookup(chatId, cap);
+        if (v !== null && (best === null || v > best)) { best = v; from = chatId; }
+    }
+    return { to: best, from };
+}
+
+/** 上次结晶楼层(含分支父链)。非分支等价 getLastCrystallizedTo。
+ *  返回 { to, from }:from='local' 本聊天 / 祖先 chatId / null 没结晶过 */
+export async function getLastCrystallizedToDeep() {
+    const local = getLastCrystallizedTo();
+    const chain = await getAncestorChain();
+    return pickCrystallizedTo(local, chain);
 }
 
 /** 触发引擎一次评分所需的过滤上下文 */

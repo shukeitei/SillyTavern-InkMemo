@@ -7,7 +7,7 @@
 import { extension_settings, getContext } from '../../../../extensions.js';
 import { saveSettingsDebounced, systemUserName } from '../../../../../script.js';
 import { hideChatMessageRange } from '../../../../chats.js';
-import { getLastCrystallizedTo } from './storage.js';
+import { getLastCrystallizedTo, getLastCrystallizedToDeep, getTimelineLabel } from './storage.js';
 
 const MODULE_NAME = 'luomo';
 const PANEL_ID = 'mc-float-panel';
@@ -197,20 +197,37 @@ function fillDefaults() {
         toEl.value = '';
         return;
     }
-    const lastTo = getLastCrystallizedTo();
-    const from = lastTo === null ? 0 : lastTo + 1;
-    fromEl.value = from;
+    // 先按本聊天渲染一遍(同步、零延迟),再异步沿分支父链补原线的结晶进度
+    renderCrystalStatus(statusEl, fromEl, toEl, max, getLastCrystallizedTo(), 'local');
+    renderHiddenStatus();
+    const chatId = getContext()?.chatId || null;
+    const seq = ++fillSeq;
+    getLastCrystallizedToDeep().then(({ to, from }) => {
+        if (seq !== fillSeq) return;                          // 期间又刷过,以新为准
+        if ((getContext()?.chatId || null) !== chatId) return; // 期间切了聊天
+        if (from === 'local' || from === null) return;         // 本聊天自己有值/祖先也没有:首渲染已对
+        const el = document.getElementById(PANEL_ID);
+        if (!el) return;
+        renderCrystalStatus(el.querySelector('#mc-fp-status'), el.querySelector('#mc-fp-from'), el.querySelector('#mc-fp-to'), getMaxFloor(), to, from);
+    });
+}
+let fillSeq = 0;
+
+/** 渲染结晶状态行 + 起始楼层。from='local' 本聊天 / 祖先 chatId(分支前在原线晶的) */
+function renderCrystalStatus(statusEl, fromEl, toEl, max, lastTo, from) {
+    if (max === null) return;
+    const start = lastTo === null ? 0 : lastTo + 1;
+    fromEl.value = start;
     // 结束楼层故意留空:逼用户每次手填,防止懒得检查直接结晶。需要填到最新点「最新」按钮
     toEl.value = '';
-
+    const src = (from && from !== 'local') ? `(原线「${getTimelineLabel(from)}」)` : '';
     if (lastTo === null) {
         statusEl.textContent = `本聊天还没结晶过 · 当前 #${max}`;
-    } else if (from > max) {
-        statusEl.textContent = `已结晶到 #${lastTo} · 当前 #${max} · 已是最新 ✓`;
+    } else if (start > max) {
+        statusEl.textContent = `已结晶到 #${lastTo}${src} · 当前 #${max} · 已是最新 ✓`;
     } else {
-        statusEl.textContent = `上次结晶到 #${lastTo} · 当前 #${max} · 还差 ${max - from + 1} 楼`;
+        statusEl.textContent = `上次结晶到 #${lastTo}${src} · 当前 #${max} · 还差 ${max - start + 1} 楼`;
     }
-    renderHiddenStatus();
 }
 
 // ── 隐藏楼层状态 ────────────────────────────────────
