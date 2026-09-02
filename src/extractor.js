@@ -6,6 +6,18 @@ import { getContext } from '../../../../extensions.js';
 const LOG_PREFIX = '[InkMemo]';
 
 /**
+ * 工具痕迹楼:ST tool calling(春秋 recall 等)落下的系统楼,mes 是整包 JSON,不是正文。
+ * 活的带 extra.tool_invocations;被春秋「熄灭」后键改名 extra.cq_retired_tool_invocations,两种形态都算。
+ * 判据与春秋 recorder.js isToolTraceFloor 同口径。
+ */
+export function isTraceFloor(m) {
+    const ex = m?.extra;
+    if (!ex) return false;
+    return (Array.isArray(ex.tool_invocations) && ex.tool_invocations.length > 0)
+        || (Array.isArray(ex.cq_retired_tool_invocations) && ex.cq_retired_tool_invocations.length > 0);
+}
+
+/**
  * 按楼层范围提取消息
  * @param {number} from 起始楼层（含）
  * @param {number} to   结束楼层（含）
@@ -32,21 +44,30 @@ export function extractMessages(from, to, cleanTags) {
         throw new Error(`最大楼层号为 #${chat.length - 1}`);
     }
 
+    // 工具痕迹楼整层跳过:它的 mes 是 recall 结果 JSON,喂进结晶只会污染回忆录、撑爆 token
     const slice = chat.slice(from, to + 1);
-    const messages = slice.map((msg, i) => ({
-        floor: from + i,
-        name: msg.name || '未知',
-        isUser: !!msg.is_user,
-        content: cleanContent(msg.mes || '', cleanTags),
-    }));
+    const messages = [];
+    let skipped = 0;
+    slice.forEach((msg, i) => {
+        if (isTraceFloor(msg)) { skipped++; return; }
+        messages.push({
+            floor: from + i,
+            name: msg.name || '未知',
+            isUser: !!msg.is_user,
+            content: cleanContent(msg.mes || '', cleanTags),
+        });
+    });
+    if (messages.length === 0) {
+        throw new Error(`#${from} ~ #${to} 全是调用痕迹楼,没有正文可结晶`);
+    }
 
     // 拼接为纯文本，供后续发给结晶 API
     const formatted = messages.map(m =>
         `[#${m.floor}] ${m.name}:\n${m.content}`
     ).join('\n\n---\n\n');
 
-    console.log(`${LOG_PREFIX} 提取完成: #${from} ~ #${to}，共 ${messages.length} 条`);
-    return { messages, formatted, count: messages.length };
+    console.log(`${LOG_PREFIX} 提取完成: #${from} ~ #${to}，共 ${messages.length} 条` + (skipped ? `，跳过 ${skipped} 层调用痕迹楼` : ''));
+    return { messages, formatted, count: messages.length, skipped };
 }
 
 /**

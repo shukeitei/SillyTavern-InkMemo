@@ -648,7 +648,7 @@ function showPreview() {
         if (isMobile()) {
             // 手机端：内联预览
             $('#mc-inline-preview-list').html(renderPreviewHTML(result.messages));
-            $('#mc-inline-preview-count').text(`共 ${result.count} 条消息`);
+            $('#mc-inline-preview-count').text(`共 ${result.count} 条消息` + (result.skipped ? `(跳过 ${result.skipped} 层调用痕迹楼)` : ''));
             $('#mc-inline-preview').slideDown(200);
             setTimeout(() => {
                 const el = document.getElementById('mc-inline-preview');
@@ -657,7 +657,7 @@ function showPreview() {
         } else {
             // 桌面端：Modal 弹窗
             $('#mc-preview-list').html(renderPreviewHTML(result.messages));
-            $('#mc-preview-count').text(`共 ${result.count} 条消息`);
+            $('#mc-preview-count').text(`共 ${result.count} 条消息` + (result.skipped ? `(跳过 ${result.skipped} 层调用痕迹楼)` : ''));
             $('#mc-preview-overlay').fadeIn(200);
         }
 

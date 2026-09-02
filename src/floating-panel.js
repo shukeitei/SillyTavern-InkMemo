@@ -5,9 +5,10 @@
 // 桌面=可拖动悬浮小窗;手机(≤600px)=固定底部小抽屉,并把抽屉里的两个内联预览容器借进来
 
 import { extension_settings, getContext } from '../../../../extensions.js';
-import { saveSettingsDebounced, systemUserName } from '../../../../../script.js';
+import { saveSettingsDebounced, systemUserName, eventSource, event_types } from '../../../../../script.js';
 import { hideChatMessageRange } from '../../../../chats.js';
 import { getLastCrystallizedTo, getLastCrystallizedToDeep, getTimelineLabel } from './storage.js';
+import { isTraceFloor } from './extractor.js';
 
 const MODULE_NAME = 'luomo';
 const PANEL_ID = 'mc-float-panel';
@@ -23,6 +24,10 @@ export function mountFloatingPanel(d) {
         if (isOpen()) fillDefaults();
     });
     watchHiddenChanges();
+    // 新楼进来/删楼/swipe 时正文楼数会变,只刷两行状态文字,不动用户填到一半的输入框
+    for (const ev of [event_types.MESSAGE_RECEIVED, event_types.MESSAGE_SENT, event_types.MESSAGE_DELETED, event_types.MESSAGE_SWIPED]) {
+        if (ev) eventSource.on(ev, () => { if (isOpen()) refreshStatusText(); });
+    }
 }
 
 function isOpen() {
@@ -102,6 +107,12 @@ function ensurePanel() {
             <button class="mc-btn-ghost" id="mc-fp-hide-do">隐藏</button>
             <button class="mc-btn-ghost" id="mc-fp-unhide-do">恢复</button>
         </div>
+        <div class="mc-fp-range mc-fp-hideops mc-fp-keeprow" id="mc-fp-keeprow" style="display:none">
+            <span class="mc-fp-keep-label">只留最近</span>
+            <input class="mc-input mc-fp-input mc-fp-keep" type="number" id="mc-fp-keep" min="1" value="10">
+            <span class="mc-fp-keep-label">层正文</span>
+            <button class="mc-btn-ghost" id="mc-fp-keep-fill" title="按当前露出的正文楼数(不算调用痕迹楼)算出该藏的范围,填进上面起止框;不直接隐藏,看一眼再点「隐藏」">算范围</button>
+        </div>
         <div class="mc-fp-range">
             <span class="mc-range-hash">#</span>
             <input class="mc-input mc-fp-input" type="number" id="mc-fp-from" min="0" placeholder="起始">
@@ -139,9 +150,20 @@ function ensurePanel() {
     // 状态行由 is_system 属性的 MutationObserver 自动刷新,这里不手动刷
     panel.querySelector('#mc-fp-hidden').addEventListener('click', () => {
         const ops = panel.querySelector('#mc-fp-hideops');
-        ops.style.display = ops.style.display === 'none' ? '' : 'none';
+        const show = ops.style.display === 'none';
+        panel.querySelectorAll('.mc-fp-hideops').forEach(el => { el.style.display = show ? '' : 'none'; });
         renderHiddenStatus(); // 刷新行尾的展开/收起箭头
     });
+    // 「只留最近 N 层正文」:N 记进设置,算范围只回填起止框,由用户看过再点「隐藏」
+    const keepEl = panel.querySelector('#mc-fp-keep');
+    keepEl.value = getPosBucket().fp_keep_visible || 10;
+    keepEl.addEventListener('change', () => {
+        const n = Math.max(1, parseInt(keepEl.value, 10) || 10);
+        keepEl.value = n;
+        getPosBucket().fp_keep_visible = n;
+        saveSettingsDebounced();
+    });
+    panel.querySelector('#mc-fp-keep-fill').addEventListener('click', fillKeepRange);
     const doHide = async (unhide) => {
         const range = readHideRange();
         if (!range) return;
@@ -182,6 +204,32 @@ function getMaxFloor() {
     return (chat && chat.length > 0) ? chat.length - 1 : null;
 }
 
+// ── 楼层分类 ────────────────────────────────────────
+// 楼分三种:正文楼(用户/AI 对话)、天生系统楼(ST 提示/旁白/注释)、工具痕迹楼(春秋 recall 等
+// tool calling 落的 JSON 楼,活的 is_system 与生俱来,熄灭后键改名但仍是系统楼)。
+// 楼号 #N 三种都占位,所以「当前 #186 − 已隐藏至 #160」≠ 露出的正文楼数——
+// 春秋一轮可能落 0~2 层痕迹楼,靠楼号差心算该藏到哪必然算错(栩栩 2026-09-03 反馈)。
+
+/** 天生就是系统消息的楼(不是用户 /hide 出来的):旁白/注释/ST 系统提示 */
+function isNativeSystemFloor(m) {
+    if (!m?.is_system) return false;
+    const t = m.extra?.type;
+    return t === 'narrator' || t === 'comment' || m.name === systemUserName;
+}
+
+/** 正文楼:排除工具痕迹楼与天生系统楼;被 /hide 的正文楼仍算正文(只是藏起来了) */
+function isContentFloor(m) {
+    return !isTraceFloor(m) && !isNativeSystemFloor(m);
+}
+
+/** 当前露给 AI 看的正文楼下标(未隐藏的正文楼) */
+function getVisibleContentFloors() {
+    const chat = getContext()?.chat || [];
+    const out = [];
+    chat.forEach((m, i) => { if (!m.is_system && isContentFloor(m)) out.push(i); });
+    return out;
+}
+
 /** 状态行 + 默认楼层:起始 = 上次结晶楼层+1,结束 = 当前最新楼层 */
 function fillDefaults() {
     const panel = document.getElementById(PANEL_ID);
@@ -212,21 +260,41 @@ function fillDefaults() {
     });
 }
 let fillSeq = 0;
+// 最近一次渲染用的结晶进度(供「算范围」封顶、新楼到来时轻刷状态行)
+let lastCrystalTo = null, lastCrystalFrom = null;
 
-/** 渲染结晶状态行 + 起始楼层。from='local' 本聊天 / 祖先 chatId(分支前在原线晶的) */
+/** 只刷两行状态文字,不碰任何输入框(新楼进来时用) */
+function refreshStatusText() {
+    const panel = document.getElementById(PANEL_ID);
+    if (!panel) return;
+    renderCrystalStatus(panel.querySelector('#mc-fp-status'), null, null, getMaxFloor(), lastCrystalTo, lastCrystalFrom);
+    renderHiddenStatus();
+}
+
+/** 渲染结晶状态行 + 起始楼层。from='local' 本聊天 / 祖先 chatId(分支前在原线晶的);fromEl/toEl 传 null 则不动输入框 */
 function renderCrystalStatus(statusEl, fromEl, toEl, max, lastTo, from) {
     if (max === null) return;
+    lastCrystalTo = lastTo;
+    lastCrystalFrom = from;
     const start = lastTo === null ? 0 : lastTo + 1;
-    fromEl.value = start;
+    if (fromEl) fromEl.value = start;
     // 结束楼层故意留空:逼用户每次手填,防止懒得检查直接结晶。需要填到最新点「最新」按钮
-    toEl.value = '';
+    if (toEl) toEl.value = '';
     const src = (from && from !== 'local') ? `(原线「${getTimelineLabel(from)}」)` : '';
     if (lastTo === null) {
         statusEl.textContent = `本聊天还没结晶过 · 当前 #${max}`;
     } else if (start > max) {
         statusEl.textContent = `已结晶到 #${lastTo}${src} · 当前 #${max} · 已是最新 ✓`;
     } else {
-        statusEl.textContent = `上次结晶到 #${lastTo}${src} · 当前 #${max} · 还差 ${max - start + 1} 楼`;
+        // 「还差」按楼号差报,括号里给正文楼数——春秋痕迹楼占楼号不占正文
+        const chat = getContext()?.chat || [];
+        const gap = max - start + 1;
+        let content = 0;
+        for (let i = start; i <= max && i < chat.length; i++) if (isContentFloor(chat[i])) content++;
+        const tail = content === 0 ? `尾部 ${gap} 楼全是调用痕迹 · 正文已是最新 ✓`
+            : content === gap ? `还差 ${gap} 楼`
+            : `还差 ${gap} 楼(正文 ${content})`;
+        statusEl.textContent = `上次结晶到 #${lastTo}${src} · 当前 #${max} · ${tail}`;
     }
 }
 
@@ -238,13 +306,9 @@ function renderCrystalStatus(statusEl, fromEl, toEl, max, lastTo, from) {
 // 天生就是系统消息的楼(ST 系统楼/旁白/注释,is_system 与生俱来)不算"用户隐藏",
 // 否则聊天里混一条系统楼就把"隐藏至"顶到那去了(真机踩过:#24 的 ST 提示楼冒充隐藏进度)。
 
-/** 用户手动隐藏的楼,排除天生 is_system 的系统本体楼 */
+/** 用户手动隐藏的楼,排除天生 is_system 的系统本体楼(工具痕迹楼 name 也是 ST 系统名,同样排除) */
 function isUserHidden(m) {
-    if (!m.is_system) return false;
-    const t = m.extra?.type;
-    if (t === 'narrator' || t === 'comment') return false;
-    if (m.name === systemUserName) return false;
-    return true;
+    return !!m.is_system && !isNativeSystemFloor(m) && !isTraceFloor(m);
 }
 
 /** @returns {{maxHidden:number, total:number, holes:number}|null} maxHidden=最大用户隐藏楼(-1=无);holes=其前方仍可见的楼数(系统本体楼不算洞) */
@@ -270,13 +334,44 @@ function renderHiddenStatus() {
     const ops = document.getElementById('mc-fp-hideops');
     const arrow = (ops && ops.style.display !== 'none') ? ' ▾' : ' ▸';
     const info = getHiddenInfo();
+    // 「露出正文 N 楼」= 当前真正进提示词的对话楼数(不算痕迹楼/系统楼),这才是决定该不该再藏的数
+    const exposed = getVisibleContentFloors().length;
     if (!info || info.total === 0) {
-        el.textContent = '👻 无隐藏楼层' + arrow;
+        el.textContent = `👻 无隐藏楼层 · 露出正文 ${exposed} 楼` + arrow;
         el.classList.add('mc-fp-hidden-none');
         return;
     }
     el.classList.remove('mc-fp-hidden-none');
-    el.textContent = `👻 已隐藏至 #${info.maxHidden}` + (info.holes > 0 ? ` · 中间留 ${info.holes} 楼未藏` : '') + arrow;
+    el.textContent = `👻 已隐藏至 #${info.maxHidden} · 露出正文 ${exposed} 楼` + (info.holes > 0 ? ` · 中间留 ${info.holes} 楼` : '') + arrow;
+}
+
+/** 「算范围」:从上次隐藏点往后藏到只剩最近 N 层正文,结果回填隐藏起止框。
+ *  封顶到结晶进度——还没结晶的正文藏了就等于丢记忆,宁可少藏。 */
+function fillKeepRange() {
+    const chat = getContext()?.chat;
+    const toast = (fn, msg) => { if (typeof toastr !== 'undefined') toastr[fn](msg, '落墨'); };
+    if (!chat || chat.length === 0) return;
+    const keep = Math.max(1, parseInt(document.getElementById('mc-fp-keep')?.value, 10) || 10);
+    const visible = getVisibleContentFloors();
+    if (visible.length <= keep) {
+        toast('info', `现在露出正文 ${visible.length} 楼,没超过 ${keep},不用再藏`);
+        return;
+    }
+    const info = getHiddenInfo();
+    const from = ((info?.maxHidden ?? -1) + 1);
+    // 倒数第 keep 层正文楼保持可见,它前面一楼就是隐藏范围的结束
+    let to = visible[visible.length - keep] - 1;
+    let capped = false;
+    if (lastCrystalTo !== null && to > lastCrystalTo) { to = lastCrystalTo; capped = true; }
+    if (from > to) {
+        toast('info', capped ? `#${from} 起还没结晶,先结晶再藏` : `#${from} 之后的正文刚好 ${keep} 楼,不用再藏`);
+        return;
+    }
+    let n = 0;
+    for (let i = from; i <= to; i++) if (!chat[i].is_system && isContentFloor(chat[i])) n++;
+    document.getElementById('mc-fp-hide-from').value = from;
+    document.getElementById('mc-fp-hide-to').value = to;
+    toast('info', `已填 #${from} → #${to}(藏 ${n} 层正文,留 ${keep} 层)` + (capped ? `;结晶只到 #${lastCrystalTo},范围截到这里` : ''));
 }
 
 // 隐藏/取消隐藏不发 ST 事件,但会同步改 .mes 的 is_system 属性——盯 DOM 属性变化刷新状态。
